@@ -1,0 +1,39 @@
+name: app_restaurant
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.8.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  
+  # Estado y arquitectura
+  flutter_bloc: ^8.1.3           # Manejo de estado
+  equatable: ^2.0.5              # Comparación de objetos
+  
+  # Navegación
+  go_router: ^14.0.0             # Navegación moderna
+  
+  # UI
+  google_fonts: ^6.1.0           # Fuentes personalizadas
+  flutter_svg: ^2.0.9            # Soporte para SVG
+  
+  # Utilidades
+  shared_preferences: ^2.2.2     # Almacenamiento local simple
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  
+  # Aquí irán las imágenes más adelante
+  # assets:
+  #   - assets/images/
