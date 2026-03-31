@@ -6,10 +6,10 @@ import '../bloc/auth_state.dart';
 import '../../../../core/constants/app_colors.dart';
 
 /// Pantalla de Login
-/// 
+///
 /// Permite al usuario autenticarse con email y contraseña.
 /// Usa BLoC para manejar el estado de autenticación.
-/// 
+///
 /// Características:
 /// - Validación de formulario
 /// - Mostrar/ocultar contraseña
@@ -26,11 +26,11 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   /// Key para el formulario (permite validar)
   final _formKey = GlobalKey<FormState>();
-  
+
   /// Controllers para los campos de texto
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  
+
   /// Controla si la contraseña es visible
   bool _obscurePassword = true;
 
@@ -48,11 +48,11 @@ class _LoginPageState extends State<LoginPage> {
     if (_formKey.currentState!.validate()) {
       // Enviar evento al BLoC
       context.read<AuthBloc>().add(
-            LoginButtonPressed(
-              email: _emailController.text.trim(),
-              password: _passwordController.text,
-            ),
-          );
+        LoginButtonPressed(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+        ),
+      );
     }
   }
 
@@ -78,7 +78,7 @@ class _LoginPageState extends State<LoginPage> {
             );
           }
         },
-        
+
         // BUILDER: Construye la UI según el estado
         builder: (context, state) {
           return SafeArea(
@@ -91,7 +91,7 @@ class _LoginPageState extends State<LoginPage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       const SizedBox(height: 60),
-                      
+
                       // ════════════════════════════════════
                       // LOGO
                       // ════════════════════════════════════
@@ -117,9 +117,9 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                       ),
-                      
+
                       const SizedBox(height: 40),
-                      
+
                       // ════════════════════════════════════
                       // TÍTULO
                       // ════════════════════════════════════
@@ -128,17 +128,17 @@ class _LoginPageState extends State<LoginPage> {
                         style: Theme.of(context).textTheme.displayMedium,
                         textAlign: TextAlign.center,
                       ),
-                      
+
                       const SizedBox(height: 8),
-                      
+
                       Text(
                         'Inicia sesión para continuar',
                         style: Theme.of(context).textTheme.bodyMedium,
                         textAlign: TextAlign.center,
                       ),
-                      
+
                       const SizedBox(height: 48),
-                      
+
                       // ════════════════════════════════════
                       // CAMPO DE EMAIL
                       // ════════════════════════════════════
@@ -161,9 +161,9 @@ class _LoginPageState extends State<LoginPage> {
                           return null;
                         },
                       ),
-                      
+
                       const SizedBox(height: 20),
-                      
+
                       // ════════════════════════════════════
                       // CAMPO DE CONTRASEÑA
                       // ════════════════════════════════════
@@ -199,9 +199,9 @@ class _LoginPageState extends State<LoginPage> {
                           return null;
                         },
                       ),
-                      
+
                       const SizedBox(height: 12),
-                      
+
                       // ════════════════════════════════════
                       // ¿OLVIDASTE TU CONTRASEÑA?
                       // ════════════════════════════════════
@@ -219,16 +219,17 @@ class _LoginPageState extends State<LoginPage> {
                           },
                           child: Text(
                             '¿Olvidaste tu contraseña?',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w600,
+                                ),
                           ),
                         ),
                       ),
-                      
+
                       const SizedBox(height: 32),
-                      
+
                       // ════════════════════════════════════
                       // BOTÓN DE LOGIN
                       // ════════════════════════════════════
@@ -250,9 +251,9 @@ class _LoginPageState extends State<LoginPage> {
                               : const Text('Iniciar Sesión'),
                         ),
                       ),
-                      
+
                       const SizedBox(height: 24),
-                      
+
                       // ════════════════════════════════════
                       // INFORMACIÓN DE USUARIOS DE PRUEBA
                       // ════════════════════════════════════
@@ -277,10 +278,9 @@ class _LoginPageState extends State<LoginPage> {
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  'Usuarios de prueba',
-                                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                    color: AppColors.primary,
-                                  ),
+                                  'Hola 22 Usuarios de prueba',
+                                  style: Theme.of(context).textTheme.titleLarge
+                                      ?.copyWith(color: AppColors.primary),
                                 ),
                               ],
                             ),
@@ -317,15 +317,12 @@ class _LoginPageState extends State<LoginPage> {
       children: [
         Text(
           role,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 4),
-        Text(
-          'Email: $email',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
+        Text('Email: $email', style: Theme.of(context).textTheme.bodySmall),
         Text(
           'Contraseña: $password',
           style: Theme.of(context).textTheme.bodySmall,
