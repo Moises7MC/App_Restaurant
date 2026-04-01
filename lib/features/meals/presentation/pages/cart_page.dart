@@ -1,4 +1,7 @@
+import 'package:app_restaurant/features/meals/presentation/bloc/cart_bloc.dart';
+import 'package:app_restaurant/features/meals/presentation/bloc/cart_event.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../meals/domain/entities/cart_item.dart';
 
@@ -164,33 +167,103 @@ class CartPage extends StatelessWidget {
                   // ════════════════════════════════════
                   // BOTÓN CONFIRMAR PEDIDO
                   // ════════════════════════════════════
-                  ElevatedButton(
-                    onPressed: cartItems.isEmpty
-                        ? null
-                        : () {
-                            // TODO: Navegar a CheckoutPage o mostrar confirmación
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Pedido confirmado: \$${_calculateTotal().toStringAsFixed(2)}',
-                                ),
-                                backgroundColor: AppColors.success,
+                  // ════════════════════════════════════
+                  // BOTONES: CONFIRMAR PEDIDO Y LIBERAR MESA
+                  // ════════════════════════════════════
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Botón Confirmar Pedido
+                      ElevatedButton(
+                        onPressed: cartItems.isEmpty
+                            ? null
+                            : () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Pedido confirmado: \$${_calculateTotal().toStringAsFixed(2)}',
+                                    ),
+                                    backgroundColor: AppColors.success,
+                                  ),
+                                );
+                              },
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          backgroundColor: cartItems.isEmpty
+                              ? AppColors.border
+                              : AppColors.primary,
+                        ),
+                        child: Text(
+                          'Confirmar Pedido',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                color: AppColors.white,
+                                fontWeight: FontWeight.bold,
                               ),
-                            );
-                          },
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      backgroundColor: cartItems.isEmpty
-                          ? AppColors.border
-                          : AppColors.primary,
-                    ),
-                    child: Text(
-                      'Confirmar Pedido',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: AppColors.white,
-                        fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
+
+                      const SizedBox(height: 12),
+
+                      // Botón Liberar Mesa
+                      ElevatedButton(
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (dialogContext) => AlertDialog(
+                              title: const Text('Liberar Mesa'),
+                              content: const Text(
+                                '¿Confirmas que los clientes terminaron de comer?',
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.of(dialogContext).pop(),
+                                  child: const Text('Cancelar'),
+                                ),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    Navigator.of(dialogContext).pop();
+                                    context.read<CartBloc>().add(
+                                      LiberarMesa(
+                                        mealType: mealType,
+                                        tableNumber: tableNumber,
+                                      ),
+                                    );
+                                    Navigator.of(context).pop();
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Mesa liberada'),
+                                        backgroundColor: AppColors.success,
+                                      ),
+                                    );
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.error,
+                                  ),
+                                  child: const Text('Liberar Mesa'),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          backgroundColor: AppColors.error,
+                        ),
+                        child: Text(
+                          'Liberar Mesa',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                color: AppColors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
