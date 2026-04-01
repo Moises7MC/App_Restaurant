@@ -4,6 +4,7 @@ import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/auth/presentation/pages/home_page.dart';
 import '../../features/meals/presentation/pages/meals_page.dart';
 import '../../features/meals/presentation/pages/tables_page.dart';
+import '../../features/meals/presentation/pages/products_page.dart';
 
 /// Configuración de rutas de la aplicación
 ///
@@ -27,6 +28,9 @@ class AppRouter {
 
   /// Ruta de selección de mesas
   static const String tables = '/tables';
+
+  /// Ruta de catálogo de productos
+  static const String products = '/products';
 
   /// Ruta de home
   static const String home = '/home';
@@ -76,6 +80,22 @@ class AppRouter {
       ),
 
       // ════════════════════════════════════
+      // RUTA: PRODUCTS (CATÁLOGO DE PRODUCTOS)
+      // ════════════════════════════════════
+      GoRoute(
+        path: '/products/:mealType/:tableNumber',
+        name: 'products',
+        builder: (context, state) {
+          // Obtener parámetros de la URL
+          final mealType = state.pathParameters['mealType'] ?? 'Almuerzo';
+          final tableNumberStr = state.pathParameters['tableNumber'] ?? '1';
+          final tableNumber = int.tryParse(tableNumberStr) ?? 1;
+
+          return ProductsPage(mealType: mealType, tableNumber: tableNumber);
+        },
+      ),
+
+      // ════════════════════════════════════
       // RUTA: HOME
       // ════════════════════════════════════
       GoRoute(
@@ -85,7 +105,6 @@ class AppRouter {
       ),
 
       // Aquí agregarás más rutas en el futuro:
-      // - /products
       // - /cart
       // - /checkout
       // - /orders
@@ -139,6 +158,7 @@ class AppRouter {
 /// ```dart
 /// context.goToMeals();
 /// context.goToTables('Almuerzo');
+/// context.goToProducts('Almuerzo', 5);
 /// context.goToHome();
 /// context.goToLogin();
 /// ```
@@ -147,6 +167,7 @@ class AppRouter {
 /// ```dart
 /// context.go('/meals');
 /// context.go('/tables/Almuerzo');
+/// context.go('/products/Almuerzo/5');
 /// ```
 extension NavigationExtension on BuildContext {
   /// Navega a la pantalla de login
@@ -158,11 +179,14 @@ extension NavigationExtension on BuildContext {
   /// Navega a la pantalla de selección de mesas
   ///
   /// [mealType] Tipo de comida seleccionada (Desayuno, Almuerzo, Cena)
-
-  // void goToTables(String mealType) =>
-  //     pushNamed('tables', pathParameters: {'mealType': mealType});
-
   void goToTables(String mealType) => go('/tables/$mealType');
+
+  /// Navega a la pantalla de catálogo de productos
+  ///
+  /// [mealType] Tipo de comida seleccionada (Desayuno, Almuerzo, Cena)
+  /// [tableNumber] Número de mesa seleccionada
+  void goToProducts(String mealType, int tableNumber) =>
+      go('/products/$mealType/$tableNumber');
 
   /// Navega a la pantalla de home
   void goToHome() => go(AppRouter.home);
