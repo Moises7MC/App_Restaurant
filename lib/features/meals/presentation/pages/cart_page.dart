@@ -1,9 +1,13 @@
-import 'package:app_restaurant/features/meals/presentation/bloc/cart_bloc.dart';
-import 'package:app_restaurant/features/meals/presentation/bloc/cart_event.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/constants/app_colors.dart';
-import '../../../meals/domain/entities/cart_item.dart';
+import '../../../../core/routes/app_router.dart';
+import '../bloc/cart_bloc.dart';
+import '../bloc/cart_event.dart';
+import '../bloc/cart_state.dart';
+import '../bloc/cash_flow_bloc.dart';
+import '../bloc/cash_flow_event.dart';
+import '../../domain/entities/cart_item.dart';
 
 /// Página del carrito de compras
 ///
@@ -19,14 +23,10 @@ class CartPage extends StatelessWidget {
   /// Número de mesa
   final int tableNumber;
 
-  /// Items en el carrito
-  final List<CartItem> cartItems;
-
   const CartPage({
     super.key,
     required this.mealType,
     required this.tableNumber,
-    required this.cartItems,
   });
 
   @override
@@ -43,232 +43,242 @@ class CartPage extends StatelessWidget {
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-
       // ════════════════════════════════════
       // BODY
       // ════════════════════════════════════
       body: SafeArea(
-        child: Column(
-          children: [
-            // ════════════════════════════════════
-            // LISTA DE ITEMS
-            // ════════════════════════════════════
-            Expanded(
-              child: cartItems.isEmpty
-                  ? Center(
-                      child: Text(
-                        'Tu carrito está vacío',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    )
-                  : SingleChildScrollView(
-                      padding: const EdgeInsets.all(24.0),
-                      child: Column(
-                        children: cartItems.map((item) {
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 16.0),
-                            child: _buildCartItemCard(context, item),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-            ),
+        child: BlocBuilder<CartBloc, CartState>(
+          builder: (context, state) {
+            if (state is CartLoaded) {
+              final items = state.items;
 
-            // ════════════════════════════════════
-            // RESUMEN Y BOTÓN CONFIRMAR
-            // ════════════════════════════════════
-            Container(
-              padding: const EdgeInsets.all(24.0),
-              decoration: BoxDecoration(
-                color: AppColors.cardBackground,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  topRight: Radius.circular(24),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.shadow,
-                    blurRadius: 10,
-                    offset: const Offset(0, -2),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+              return Column(
                 children: [
                   // ════════════════════════════════════
-                  // DESGLOSE DE PRECIOS
+                  // LISTA DE ITEMS
                   // ════════════════════════════════════
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Subtotal',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      Text(
-                        '\$${_calculateSubtotal().toStringAsFixed(2)}',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ],
+                  Expanded(
+                    child: items.isEmpty
+                        ? Center(
+                            child: Text(
+                              'Tu carrito está vacío',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          )
+                        : SingleChildScrollView(
+                            padding: const EdgeInsets.all(24.0),
+                            child: Column(
+                              children: items.map((item) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 16.0),
+                                  child: _buildCartItemCard(context, item),
+                                );
+                              }).toList(),
+                            ),
+                          ),
                   ),
-
-                  const SizedBox(height: 8),
-
-                  // Descuento (placeholder)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Descuento',
-                        style: Theme.of(context).textTheme.bodyMedium,
+                  // ════════════════════════════════════
+                  // RESUMEN Y BOTONES
+                  // ════════════════════════════════════
+                  Container(
+                    padding: const EdgeInsets.all(24.0),
+                    decoration: BoxDecoration(
+                      color: AppColors.cardBackground,
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(24),
+                        topRight: Radius.circular(24),
                       ),
-                      Text(
-                        '-\$0.00',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppColors.success,
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.shadow,
+                          blurRadius: 10,
+                          offset: const Offset(0, -2),
                         ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Línea divisoria
-                  Divider(color: AppColors.border, thickness: 1),
-
-                  const SizedBox(height: 16),
-
-                  // ════════════════════════════════════
-                  // TOTAL
-                  // ════════════════════════════════════
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Total',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // ════════════════════════════════════
+                        // DESGLOSE DE PRECIOS
+                        // ════════════════════════════════════
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Subtotal',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                            Text(
+                              'S/.${state.subtotal.toStringAsFixed(2)}',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ],
                         ),
-                      ),
-                      Text(
-                        '\$${_calculateTotal().toStringAsFixed(2)}',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primary,
+                        const SizedBox(height: 8),
+                        // Descuento (placeholder)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Descuento',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                            Text(
+                              '-S/. 0.00',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: AppColors.success),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // ════════════════════════════════════
-                  // BOTÓN CONFIRMAR PEDIDO
-                  // ════════════════════════════════════
-                  // ════════════════════════════════════
-                  // BOTONES: CONFIRMAR PEDIDO Y LIBERAR MESA
-                  // ════════════════════════════════════
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Botón Confirmar Pedido
-                      ElevatedButton(
-                        onPressed: cartItems.isEmpty
-                            ? null
-                            : () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      'Pedido confirmado: \$${_calculateTotal().toStringAsFixed(2)}',
+                        const SizedBox(height: 16),
+                        // Línea divisoria
+                        Divider(color: AppColors.border, thickness: 1),
+                        const SizedBox(height: 16),
+                        // ════════════════════════════════════
+                        // TOTAL
+                        // ════════════════════════════════════
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Total',
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.textPrimary,
+                                  ),
+                            ),
+                            Text(
+                              'S/. ${state.total.toStringAsFixed(2)}',
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.primary,
+                                  ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+                        // ════════════════════════════════════
+                        // BOTONES: CONFIRMAR PEDIDO Y LIBERAR MESA
+                        // ════════════════════════════════════
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // Botón Confirmar Pedido
+                            ElevatedButton(
+                              onPressed: () {
+                                if (state.totalItems > 0) {
+                                  // Agregar ingreso al CashFlowBloc
+                                  context.read<CashFlowBloc>().add(
+                                    AddIncome(
+                                      amount: state.total,
+                                      description: 'Venta - Mesa $tableNumber',
+                                      tableNumber: tableNumber,
                                     ),
-                                    backgroundColor: AppColors.success,
+                                  );
+
+                                  // Mensaje y navegación
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Pedido enviado a cocina'),
+                                      backgroundColor: AppColors.success,
+                                    ),
+                                  );
+                                  context.goToTables(mealType);
+                                }
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.warning,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
+                              ),
+                              child: Text(
+                                'Enviar a cocina',
+                                style: Theme.of(context).textTheme.titleLarge
+                                    ?.copyWith(
+                                      color: AppColors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            // Botón Liberar Mesa
+                            ElevatedButton(
+                              onPressed: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (dialogContext) => AlertDialog(
+                                    title: const Text('Liberar Mesa'),
+                                    content: const Text(
+                                      '¿Confirmas que los clientes terminaron de comer?',
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.of(dialogContext).pop(),
+                                        child: const Text('Cancelar'),
+                                      ),
+                                      ElevatedButton(
+                                        onPressed: () {
+                                          Navigator.of(dialogContext).pop();
+                                          context.read<CartBloc>().add(
+                                            LiberarMesa(
+                                              mealType: mealType,
+                                              tableNumber: tableNumber,
+                                            ),
+                                          );
+                                          Navigator.of(context).pop();
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            const SnackBar(
+                                              content: Text('Mesa liberada'),
+                                              backgroundColor:
+                                                  AppColors.success,
+                                            ),
+                                          );
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: AppColors.error,
+                                        ),
+                                        child: const Text('Liberar Mesa'),
+                                      ),
+                                    ],
                                   ),
                                 );
                               },
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          backgroundColor: cartItems.isEmpty
-                              ? AppColors.border
-                              : AppColors.primary,
-                        ),
-                        child: Text(
-                          'Confirmar Pedido',
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(
-                                color: AppColors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      // Botón Liberar Mesa
-                      ElevatedButton(
-                        onPressed: () {
-                          showDialog(
-                            context: context,
-                            builder: (dialogContext) => AlertDialog(
-                              title: const Text('Liberar Mesa'),
-                              content: const Text(
-                                '¿Confirmas que los clientes terminaron de comer?',
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () =>
-                                      Navigator.of(dialogContext).pop(),
-                                  child: const Text('Cancelar'),
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
                                 ),
-                                ElevatedButton(
-                                  onPressed: () {
-                                    Navigator.of(dialogContext).pop();
-                                    context.read<CartBloc>().add(
-                                      LiberarMesa(
-                                        mealType: mealType,
-                                        tableNumber: tableNumber,
-                                      ),
-                                    );
-                                    Navigator.of(context).pop();
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Mesa liberada'),
-                                        backgroundColor: AppColors.success,
-                                      ),
-                                    );
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.error,
-                                  ),
-                                  child: const Text('Liberar Mesa'),
-                                ),
-                              ],
+                                backgroundColor: AppColors.error,
+                              ),
+                              child: Text(
+                                'Liberar Mesa',
+                                style: Theme.of(context).textTheme.titleLarge
+                                    ?.copyWith(
+                                      color: AppColors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                              ),
                             ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          backgroundColor: AppColors.error,
+                          ],
                         ),
-                        child: Text(
-                          'Liberar Mesa',
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(
-                                color: AppColors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ],
-              ),
-            ),
-          ],
+              );
+            }
+
+            return const Center(child: CircularProgressIndicator());
+          },
         ),
       ),
     );
@@ -299,16 +309,14 @@ class CartPage extends StatelessWidget {
             width: 60,
             height: 60,
             decoration: BoxDecoration(
-              color: AppColors.primaryLight.withOpacity(0.2),
+              color: AppColors.primaryLight.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Center(
               child: Text('🍽️', style: TextStyle(fontSize: 32)),
             ),
           ),
-
           const SizedBox(width: 16),
-
           // ════════════════════════════════════
           // INFORMACIÓN
           // ════════════════════════════════════
@@ -326,12 +334,10 @@ class CartPage extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-
                 const SizedBox(height: 4),
-
                 // Cantidad y precio unitario
                 Text(
-                  '${item.quantity}x \$${item.product.price.toStringAsFixed(2)}',
+                  '${item.quantity}x S/. ${item.product.price.toStringAsFixed(2)}',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppColors.textSecondary,
                   ),
@@ -339,9 +345,7 @@ class CartPage extends StatelessWidget {
               ],
             ),
           ),
-
           const SizedBox(width: 16),
-
           // ════════════════════════════════════
           // TOTAL DEL ITEM
           // ════════════════════════════════════
@@ -349,7 +353,7 @@ class CartPage extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '\$${item.total.toStringAsFixed(2)}',
+                'S/. ${item.total.toStringAsFixed(2)}',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: AppColors.primary,
@@ -360,15 +364,5 @@ class CartPage extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  /// Calcula el subtotal
-  double _calculateSubtotal() {
-    return cartItems.fold(0, (sum, item) => sum + item.total);
-  }
-
-  /// Calcula el total (por ahora igual al subtotal)
-  double _calculateTotal() {
-    return _calculateSubtotal();
   }
 }

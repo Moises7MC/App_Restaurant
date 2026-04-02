@@ -67,7 +67,7 @@ class _ProductsPageState extends State<ProductsPage> {
                       padding: const EdgeInsets.only(bottom: 16.0),
                       child: _buildProductCard(context, product),
                     );
-                  }).toList(),
+                  }),
                   const SizedBox(height: 24),
                   BlocBuilder<CartBloc, CartState>(
                     builder: (context, state) {
@@ -78,10 +78,10 @@ class _ProductsPageState extends State<ProductsPage> {
                       return Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: AppColors.primaryLight.withOpacity(0.1),
+                          color: AppColors.primaryLight.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: AppColors.primary.withOpacity(0.3),
+                            color: AppColors.primary.withValues(alpha: 0.3),
                           ),
                         ),
                         child: Column(
@@ -120,12 +120,12 @@ class _ProductsPageState extends State<ProductsPage> {
                             builder: (context) => CartPage(
                               mealType: widget.mealType,
                               tableNumber: widget.tableNumber,
-                              cartItems: state.items,
                             ),
                           ),
                         );
                       },
                       style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.warning,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                       ),
                       child: Row(
@@ -187,11 +187,14 @@ class _ProductsPageState extends State<ProductsPage> {
                 width: 80,
                 height: 80,
                 decoration: BoxDecoration(
-                  color: AppColors.primaryLight.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Center(
-                  child: Text('🍽️', style: TextStyle(fontSize: 40)),
+                  image: DecorationImage(
+                    image: AssetImage(product.imageUrl),
+                    fit: BoxFit.cover,
+                    onError: (exception, stackTrace) {
+                      print('Error cargando imagen: ${product.imageUrl}');
+                    },
+                  ),
                 ),
               ),
               const SizedBox(width: 16),
@@ -216,7 +219,7 @@ class _ProductsPageState extends State<ProductsPage> {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          '\$${product.price.toStringAsFixed(2)}',
+                          'S/.${product.price.toStringAsFixed(2)}',
                           style: Theme.of(context).textTheme.titleLarge
                               ?.copyWith(
                                 fontWeight: FontWeight.bold,
@@ -315,42 +318,42 @@ class _ProductsPageState extends State<ProductsPage> {
     final products = <Product>[
       Product(
         id: 'prod_1',
-        name: 'Colombia Tolima Coffee',
-        price: 100.00,
-        description: 'Café premium de la región Tolima',
-        imageUrl: 'assets/images/coffee.jpg',
+        name: 'Pollo a la parrilla',
+        price: 13,
+        description: 'Sale con papas fritas o papas sanchadas',
+        imageUrl: 'assets/images/pollo_parrilla.jpg', // ← COMPLETO
         category: widget.mealType,
       ),
       Product(
         id: 'prod_2',
-        name: 'Ensalada Fresca',
-        price: 85.00,
-        description: 'Ensalada con vegetales de temporada',
-        imageUrl: 'assets/images/salad.jpg',
+        name: 'Cabrito',
+        price: 15,
+        description: 'Con frejol o mentestra',
+        imageUrl: 'assets/images/cabrito.jpg',
         category: widget.mealType,
       ),
       Product(
         id: 'prod_3',
-        name: 'Pechuga Grillada',
-        price: 120.00,
-        description: 'Pechuga de pollo a la parrilla',
-        imageUrl: 'assets/images/chicken.jpg',
+        name: 'Pescado frito',
+        price: 10,
+        description: 'Pescado furel',
+        imageUrl: 'assets/images/pescado frito.jpg',
         category: widget.mealType,
       ),
       Product(
         id: 'prod_4',
-        name: 'Pasta Carbonara',
-        price: 95.00,
-        description: 'Pasta tradicional italiana',
-        imageUrl: 'assets/images/pasta.jpg',
+        name: 'Ceviche mixto',
+        price: 15,
+        description: 'doble o trio marino',
+        imageUrl: 'assets/images/ceviche mixto.jpg',
         category: widget.mealType,
       ),
       Product(
         id: 'prod_5',
-        name: 'Salmón a la Mantequilla',
-        price: 150.00,
+        name: 'Lomo saltado',
+        price: 13,
         description: 'Salmón fresco con salsa de mantequilla',
-        imageUrl: 'assets/images/salmon.jpg',
+        imageUrl: 'assets/images/lomo saltado.jpg',
         category: widget.mealType,
       ),
     ];
