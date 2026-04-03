@@ -78,16 +78,37 @@ class CashFlowBloc extends Bloc<CashFlowEvent, CashFlowState> {
     }
   }
 
-  /// Maneja limpiar flujo de caja (cierre de caja)
+  /// Maneja cerrar caja (cierre de caja diario)
   Future<void> _onClearCashFlow(
     ClearCashFlow event,
     Emitter<CashFlowState> emit,
   ) async {
     try {
+      // Calcular totales antes de limpiar
+      final ingresos = _transactions
+          .where((t) => t.type == 'ingreso')
+          .fold<double>(0, (sum, t) => sum + t.amount);
+
+      final gastos = _transactions
+          .where((t) => t.type == 'gasto')
+          .fold<double>(0, (sum, t) => sum + t.amount);
+
+      final balance = ingresos - gastos;
+
+      // Emitir estado de caja cerrada con el resumen
+      emit(
+        CashFlowClosed(
+          transactions: List.from(_transactions),
+          totalIncome: ingresos,
+          totalExpense: gastos,
+          finalBalance: balance,
+        ),
+      );
+
+      // Limpiar transacciones después de guardar el resumen
       _transactions.clear();
-      emit(CashFlowInitial());
     } catch (e) {
-      emit(CashFlowError('Error al limpiar flujo de caja: $e'));
+      emit(CashFlowError('Error al cerrar caja: $e'));
     }
   }
 

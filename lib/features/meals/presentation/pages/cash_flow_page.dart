@@ -1,13 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:intl/intl.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/routes/app_router.dart';
 import '../bloc/cash_flow_bloc.dart';
 import '../bloc/cash_flow_event.dart';
 import '../bloc/cash_flow_state.dart';
 
-class CashFlowPage extends StatelessWidget {
+class CashFlowPage extends StatefulWidget {
   const CashFlowPage({super.key});
+
+  @override
+  State<CashFlowPage> createState() => _CashFlowPageState();
+}
+
+class _CashFlowPageState extends State<CashFlowPage> {
+  @override
+  void initState() {
+    super.initState();
+    context.read<CashFlowBloc>().add(LoadTransactions());
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -17,98 +28,169 @@ class CashFlowPage extends StatelessWidget {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => context.goBack(),
         ),
       ),
       body: BlocBuilder<CashFlowBloc, CashFlowState>(
         builder: (context, state) {
           if (state is CashFlowLoaded) {
+            final ingresos = state.transactions
+                .where((t) => t.type == 'ingreso')
+                .fold<double>(0, (sum, t) => sum + t.amount);
+
+            final gastos = state.transactions
+                .where((t) => t.type == 'gasto')
+                .fold<double>(0, (sum, t) => sum + t.amount);
+
+            final balance = ingresos - gastos;
+
             return SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // ════════════════════════════════════
-                  // RESUMEN DE CAJA
-                  // ════════════════════════════════════
-                  _buildCashSummary(context, state),
-
-                  const SizedBox(height: 24),
-
-                  // ════════════════════════════════════
-                  // TRANSACCIONES
-                  // ════════════════════════════════════
-                  if (state.transactions.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.all(24.0),
-                      child: Center(
-                        child: Text(
-                          'No hay transacciones',
-                          style: Theme.of(context).textTheme.bodyMedium,
+                  _buildSummaryCard(
+                    title: 'Ingresos',
+                    amount: ingresos,
+                    color: AppColors.success,
+                    icon: Icons.add_circle,
+                  ),
+                  const SizedBox(height: 16),
+                  _buildSummaryCard(
+                    title: 'Gastos',
+                    amount: gastos,
+                    color: AppColors.error,
+                    icon: Icons.remove_circle,
+                  ),
+                  const SizedBox(height: 16),
+                  _buildSummaryCard(
+                    title: 'Balance Neto',
+                    amount: balance,
+                    color: AppColors.warning,
+                    icon: Icons.account_balance_wallet,
+                  ),
+                  const SizedBox(height: 32),
+                  Text(
+                    'Historial de Transacciones',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  state.transactions.isEmpty
+                      ? Center(
+                          child: Text(
+                            'Sin transacciones',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        )
+                      : Column(
+                          children: state.transactions.map((transaction) {
+                            return _buildTransactionCard(context, transaction);
+                          }).toList(),
                         ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: () => _showAddExpenseDialog(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.error,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: Text(
+                      'Agregar Gasto',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: AppColors.white,
+                        fontWeight: FontWeight.bold,
                       ),
-                    )
-                  else
-                    _buildTransactionsList(context, state),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ElevatedButton(
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (dialogContext) => AlertDialog(
+                          title: const Text('Cierre de Caja'),
+                          content: const Text(
+                            '¿Estás seguro de que deseas cerrar caja? No podrás agregar más transacciones hoy.',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () =>
+                                  Navigator.of(dialogContext).pop(),
+                              child: const Text('Cancelar'),
+                            ),
+                            ElevatedButton(
+                              onPressed: () {
+                                context.read<CashFlowBloc>().add(
+                                  ClearCashFlow(),
+                                );
+                                Navigator.of(dialogContext).pop();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Caja cerrada correctamente'),
+                                    backgroundColor: AppColors.success,
+                                  ),
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.error,
+                              ),
+                              child: const Text('Cerrar Caja'),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: Text(
+                      'Cierre de Caja',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: AppColors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
 
+          if (state is CashFlowClosed) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.check_circle, color: AppColors.success, size: 80),
                   const SizedBox(height: 24),
-
-                  // ════════════════════════════════════
-                  // BOTONES DE ACCIÓN
-                  // ════════════════════════════════════
-                  Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Botón Agregar Gasto
-                        ElevatedButton(
-                          onPressed: () => _showAddExpenseDialog(context),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.error,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.remove_circle_outline),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Agregar Gasto',
-                                style: Theme.of(context).textTheme.titleLarge
-                                    ?.copyWith(
-                                      color: AppColors.white,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(height: 12),
-
-                        // Botón Cierre de Caja
-                        ElevatedButton(
-                          onPressed: () => _showCloseCashDialog(context),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.textPrimary,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.check_circle_outline),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Cierre de Caja',
-                                style: Theme.of(context).textTheme.titleLarge
-                                    ?.copyWith(
-                                      color: AppColors.white,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                  Text(
+                    'Caja Cerrada',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Resumen del día:',
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Ingresos: S/. ${state.totalIncome.toStringAsFixed(2)}',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  Text(
+                    'Gastos: S/. ${state.totalExpense.toStringAsFixed(2)}',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  Text(
+                    'Balance: S/. ${state.finalBalance.toStringAsFixed(2)}',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.success,
                     ),
                   ),
                 ],
@@ -122,231 +204,105 @@ class CashFlowPage extends StatelessWidget {
     );
   }
 
-  /// Widget: Resumen de caja
-  Widget _buildCashSummary(BuildContext context, CashFlowLoaded state) {
-    return Padding(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        children: [
-          // INGRESOS
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: AppColors.success.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.success.withOpacity(0.3)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Ingresos',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '\$${state.totalIncome.toStringAsFixed(2)}',
-                      style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                        color: AppColors.success,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                Icon(
-                  Icons.add_circle,
-                  size: 40,
-                  color: AppColors.success.withOpacity(0.7),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // GASTOS
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: AppColors.error.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.error.withOpacity(0.3)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Gastos',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '\$${state.totalExpense.toStringAsFixed(2)}',
-                      style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                        color: AppColors.error,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                Icon(
-                  Icons.remove_circle,
-                  size: 40,
-                  color: AppColors.error.withOpacity(0.7),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // BALANCE NETO
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.primary.withOpacity(0.3)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Balance Neto',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '\$${state.balance.toStringAsFixed(2)}',
-                      style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                Icon(
-                  Icons.account_balance_wallet,
-                  size: 40,
-                  color: AppColors.primary.withOpacity(0.7),
-                ),
-              ],
-            ),
-          ),
-        ],
+  Widget _buildSummaryCard({
+    required String title,
+    required double amount,
+    required Color color,
+    required IconData icon,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color, width: 2),
       ),
-    );
-  }
-
-  /// Widget: Lista de transacciones
-  Widget _buildTransactionsList(BuildContext context, CashFlowLoaded state) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Historial de Transacciones',
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
-          ...state.transactions.map((transaction) {
-            final isIncome = transaction.type == 'ingreso';
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12.0),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.cardBackground,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: isIncome
-                        ? AppColors.success.withOpacity(0.3)
-                        : AppColors.error.withOpacity(0.3),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    // Ícono
-                    Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        color: isIncome
-                            ? AppColors.success.withOpacity(0.2)
-                            : AppColors.error.withOpacity(0.2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Icon(
-                          isIncome ? Icons.add : Icons.remove,
-                          color: isIncome ? AppColors.success : AppColors.error,
-                          size: 28,
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(width: 16),
-
-                    // Información
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            transaction.description,
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.textPrimary,
-                                ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            DateFormat(
-                              'dd/MM/yyyy HH:mm',
-                            ).format(transaction.dateTime),
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(width: 16),
-
-                    // Monto
-                    Text(
-                      '${isIncome ? '+' : '-'}\$${transaction.amount.toStringAsFixed(2)}',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: isIncome ? AppColors.success : AppColors.error,
-                      ),
-                    ),
-                  ],
-                ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
-            );
-          }).toList(),
+              Icon(icon, color: color, size: 28),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'S/. ${amount.toStringAsFixed(2)}',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  /// Diálogo: Agregar gasto
+  Widget _buildTransactionCard(BuildContext context, dynamic transaction) {
+    final isIngreso = transaction.type == 'ingreso';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: isIngreso ? AppColors.success : AppColors.error,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              isIngreso ? Icons.add : Icons.remove,
+              color: AppColors.white,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  transaction.description,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  transaction.dateTime.toString().split('.')[0],
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          Text(
+            '${isIngreso ? '+' : '-'}S/. ${transaction.amount.toStringAsFixed(2)}',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: isIngreso ? AppColors.success : AppColors.error,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showAddExpenseDialog(BuildContext context) {
-    final amountController = TextEditingController();
     final descriptionController = TextEditingController();
+    final amountController = TextEditingController();
 
     showDialog(
       context: context,
@@ -356,19 +312,19 @@ class CashFlowPage extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
-              controller: amountController,
-              keyboardType: TextInputType.number,
+              controller: descriptionController,
               decoration: const InputDecoration(
-                labelText: 'Monto',
-                hintText: '0.00',
+                hintText: 'Descripción del gasto',
+                border: OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 16),
             TextField(
-              controller: descriptionController,
+              controller: amountController,
+              keyboardType: TextInputType.number,
               decoration: const InputDecoration(
-                labelText: 'Descripción',
-                hintText: 'Ej: Compra de ingredientes',
+                hintText: 'Monto',
+                border: OutlineInputBorder(),
               ),
             ),
           ],
@@ -380,50 +336,15 @@ class CashFlowPage extends StatelessWidget {
           ),
           ElevatedButton(
             onPressed: () {
-              final amount = double.tryParse(amountController.text) ?? 0;
-              final description = descriptionController.text;
-
-              if (amount > 0 && description.isNotEmpty) {
-                context.read<CashFlowBloc>().add(
-                  AddExpense(amount: amount, description: description),
-                );
-                Navigator.of(dialogContext).pop();
-              }
-            },
-            child: const Text('Agregar'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Diálogo: Cierre de caja
-  void _showCloseCashDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Cierre de Caja'),
-        content: const Text(
-          '¿Confirmas el cierre de caja? Se limpiarán todas las transacciones.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              context.read<CashFlowBloc>().add(const ClearCashFlow());
-              Navigator.of(dialogContext).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Caja cerrada'),
-                  backgroundColor: AppColors.success,
+              context.read<CashFlowBloc>().add(
+                AddExpense(
+                  amount: double.parse(amountController.text),
+                  description: descriptionController.text,
                 ),
               );
+              Navigator.of(dialogContext).pop();
             },
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            child: const Text('Confirmar Cierre'),
+            child: const Text('Agregar'),
           ),
         ],
       ),

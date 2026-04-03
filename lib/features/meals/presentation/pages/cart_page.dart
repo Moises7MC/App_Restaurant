@@ -8,6 +8,7 @@ import '../bloc/cart_state.dart';
 import '../bloc/cash_flow_bloc.dart';
 import '../bloc/cash_flow_event.dart';
 import '../../domain/entities/cart_item.dart';
+import '../../../../services/api_service.dart';
 
 /// Página del carrito de compras
 ///
@@ -166,27 +167,59 @@ class CartPage extends StatelessWidget {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            // Botón Confirmar Pedido
+                            // Botón enviar a cocina
                             ElevatedButton(
-                              onPressed: () {
+                              onPressed: () async {
                                 if (state.totalItems > 0) {
-                                  // Agregar ingreso al CashFlowBloc
-                                  context.read<CashFlowBloc>().add(
-                                    AddIncome(
-                                      amount: state.total,
-                                      description: 'Venta - Mesa $tableNumber',
-                                      tableNumber: tableNumber,
-                                    ),
-                                  );
+                                  // Crear la orden para enviar al backend
+                                  final orderData = {
+                                    'tableNumber': tableNumber,
+                                    'mealType': mealType,
+                                    'items': state.items
+                                        .map(
+                                          (item) => {
+                                            'productId': item.product.id,
+                                            'quantity': item.quantity,
+                                            'unitPrice': item.product.price,
+                                          },
+                                        )
+                                        .toList(),
+                                    'total': state.total,
+                                    'status': 'Enviado a cocina',
+                                  };
 
-                                  // Mensaje y navegación
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Pedido enviado a cocina'),
-                                      backgroundColor: AppColors.success,
-                                    ),
-                                  );
-                                  context.goToTables(mealType);
+                                  try {
+                                    // Enviar orden al backend
+                                    await ApiService.createOrder(orderData);
+
+                                    // Agregar ingreso al CashFlowBloc
+                                    context.read<CashFlowBloc>().add(
+                                      AddIncome(
+                                        amount: state.total,
+                                        description:
+                                            'Venta - Mesa $tableNumber',
+                                        tableNumber: tableNumber,
+                                      ),
+                                    );
+
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Pedido enviado a cocina',
+                                        ),
+                                        backgroundColor: AppColors.success,
+                                      ),
+                                    );
+
+                                    context.goToTables(mealType);
+                                  } catch (e) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Error: ${e.toString()}'),
+                                        backgroundColor: AppColors.error,
+                                      ),
+                                    );
+                                  }
                                 }
                               },
                               style: ElevatedButton.styleFrom(

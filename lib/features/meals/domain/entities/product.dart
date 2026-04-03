@@ -11,7 +11,7 @@ import 'package:equatable/equatable.dart';
 /// - Categoría (Almuerzo, Desayuno, Cena)
 class Product extends Equatable {
   /// Identificador único del producto
-  final String id;
+  final int id;
 
   /// Nombre del plato
   final String name;

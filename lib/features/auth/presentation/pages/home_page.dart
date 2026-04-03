@@ -6,12 +6,12 @@ import '../../../auth/presentation/bloc/auth_state.dart';
 import '../../../../core/constants/app_colors.dart';
 
 /// Pantalla principal después del login
-/// 
+///
 /// Por ahora es una pantalla simple que muestra:
 /// - Datos del usuario autenticado
 /// - Botón de logout
 /// - Mensaje de "Próximamente" para futuras funcionalidades
-/// 
+///
 /// En los próximos pasos agregaremos:
 /// - Catálogo de productos
 /// - Carrito de compras
@@ -39,7 +39,7 @@ class HomePage extends StatelessWidget {
           ),
         ],
       ),
-      
+
       // ════════════════════════════════════
       // BODY
       // ════════════════════════════════════
@@ -75,9 +75,9 @@ class HomePage extends StatelessWidget {
                         color: AppColors.white,
                       ),
                     ),
-                    
+
                     const SizedBox(height: 32),
-                    
+
                     // ════════════════════════════════════
                     // MENSAJE DE BIENVENIDA
                     // ════════════════════════════════════
@@ -85,9 +85,9 @@ class HomePage extends StatelessWidget {
                       '¡Bienvenido!',
                       style: Theme.of(context).textTheme.displayMedium,
                     ),
-                    
+
                     const SizedBox(height: 16),
-                    
+
                     // ════════════════════════════════════
                     // NOMBRE DEL USUARIO
                     // ════════════════════════════════════
@@ -98,9 +98,9 @@ class HomePage extends StatelessWidget {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    
+
                     const SizedBox(height: 8),
-                    
+
                     // ════════════════════════════════════
                     // EMAIL DEL USUARIO
                     // ════════════════════════════════════
@@ -108,9 +108,9 @@ class HomePage extends StatelessWidget {
                       state.user.email,
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
-                    
+
                     const SizedBox(height: 48),
-                    
+
                     // ════════════════════════════════════
                     // CARD DE "PRÓXIMAMENTE"
                     // ════════════════════════════════════
@@ -149,9 +149,9 @@ class HomePage extends StatelessWidget {
                         ],
                       ),
                     ),
-                    
+
                     const SizedBox(height: 24),
-                    
+
                     // ════════════════════════════════════
                     // INFORMACIÓN DE ID (para debugging)
                     // ════════════════════════════════════
@@ -173,11 +173,9 @@ class HomePage extends StatelessWidget {
               ),
             );
           }
-          
+
           // Si no está autenticado, mostrar loading
-          return const Center(
-            child: CircularProgressIndicator(),
-          );
+          return const Center(child: CircularProgressIndicator());
         },
       ),
     );
@@ -190,27 +188,26 @@ class HomePage extends StatelessWidget {
       builder: (dialogContext) => AlertDialog(
         title: const Text('Cerrar sesión'),
         content: const Text('¿Estás seguro que deseas cerrar sesión?'),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         actions: [
           // Botón CANCELAR
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
             child: const Text('Cancelar'),
           ),
-          
+
           // Botón CERRAR SESIÓN
           ElevatedButton(
             onPressed: () {
               // Cerrar el diálogo
               Navigator.of(dialogContext).pop();
-              
+
               // Enviar evento de logout
               context.read<AuthBloc>().add(LogoutButtonPressed());
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
             ),
             child: const Text('Cerrar sesión'),
           ),

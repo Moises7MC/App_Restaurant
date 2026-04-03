@@ -62,10 +62,9 @@ class MealsPage extends StatelessWidget {
             child: BlocBuilder<CashFlowBloc, CashFlowState>(
               builder: (context, state) {
                 // Mostrar cantidad de transacciones si hay
-                int transactionCount = 0;
-                if (state is CashFlowLoaded) {
-                  transactionCount = state.transactionCount;
-                }
+                int transactionCount = state is CashFlowLoaded
+                    ? state.transactions.length
+                    : 0;
 
                 return GestureDetector(
                   onTap: () {

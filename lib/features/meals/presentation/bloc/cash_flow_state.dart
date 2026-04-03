@@ -11,42 +11,43 @@ abstract class CashFlowState extends Equatable {
 
 /// Estado inicial
 class CashFlowInitial extends CashFlowState {
-  @override
-  String toString() => 'CashFlowInitial()';
+  const CashFlowInitial();
 }
 
-/// Estado: Flujo de caja cargado
+/// Caja cerrada
+class CashFlowClosed extends CashFlowState {
+  final List<Transaction> transactions;
+  final double totalIncome;
+  final double totalExpense;
+  final double finalBalance;
+
+  const CashFlowClosed({
+    required this.transactions,
+    required this.totalIncome,
+    required this.totalExpense,
+    required this.finalBalance,
+  });
+
+  @override
+  List<Object?> get props => [
+    transactions,
+    totalIncome,
+    totalExpense,
+    finalBalance,
+  ];
+}
+
+/// Flujo de caja cargado
 class CashFlowLoaded extends CashFlowState {
-  /// Lista de transacciones
   final List<Transaction> transactions;
 
   const CashFlowLoaded(this.transactions);
 
-  /// Calcula el total de ingresos
-  double get totalIncome => transactions
-      .where((t) => t.type == 'ingreso')
-      .fold(0, (sum, t) => sum + t.amount);
-
-  /// Calcula el total de gastos
-  double get totalExpense => transactions
-      .where((t) => t.type == 'gasto')
-      .fold(0, (sum, t) => sum + t.amount);
-
-  /// Calcula el balance neto
-  double get balance => totalIncome - totalExpense;
-
-  /// Cantidad total de transacciones
-  int get transactionCount => transactions.length;
-
   @override
   List<Object?> get props => [transactions];
-
-  @override
-  String toString() =>
-      'CashFlowLoaded(transactions: ${transactions.length}, income: \$$totalIncome, expense: \$$totalExpense, balance: \$$balance)';
 }
 
-/// Estado: Error
+/// Estado de error
 class CashFlowError extends CashFlowState {
   final String message;
 
@@ -54,7 +55,4 @@ class CashFlowError extends CashFlowState {
 
   @override
   List<Object?> get props => [message];
-
-  @override
-  String toString() => 'CashFlowError(message: $message)';
 }

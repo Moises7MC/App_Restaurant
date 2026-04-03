@@ -317,7 +317,7 @@ class _ProductsPageState extends State<ProductsPage> {
   List<Product> _generateProducts() {
     final products = <Product>[
       Product(
-        id: 'prod_1',
+        id: 1,
         name: 'Pollo a la parrilla',
         price: 13,
         description: 'Sale con papas fritas o papas sanchadas',
@@ -325,7 +325,7 @@ class _ProductsPageState extends State<ProductsPage> {
         category: widget.mealType,
       ),
       Product(
-        id: 'prod_2',
+        id: 2,
         name: 'Cabrito',
         price: 15,
         description: 'Con frejol o mentestra',
@@ -333,7 +333,7 @@ class _ProductsPageState extends State<ProductsPage> {
         category: widget.mealType,
       ),
       Product(
-        id: 'prod_3',
+        id: 3,
         name: 'Pescado frito',
         price: 10,
         description: 'Pescado furel',
@@ -341,7 +341,7 @@ class _ProductsPageState extends State<ProductsPage> {
         category: widget.mealType,
       ),
       Product(
-        id: 'prod_4',
+        id: 4,
         name: 'Ceviche mixto',
         price: 15,
         description: 'doble o trio marino',
@@ -349,7 +349,7 @@ class _ProductsPageState extends State<ProductsPage> {
         category: widget.mealType,
       ),
       Product(
-        id: 'prod_5',
+        id: 5,
         name: 'Lomo saltado',
         price: 13,
         description: 'Salmón fresco con salsa de mantequilla',

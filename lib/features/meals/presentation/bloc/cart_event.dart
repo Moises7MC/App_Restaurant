@@ -21,7 +21,7 @@ class AddToCart extends CartEvent {
 }
 
 class RemoveFromCart extends CartEvent {
-  final String productId;
+  final int productId;
 
   const RemoveFromCart(this.productId);
 
