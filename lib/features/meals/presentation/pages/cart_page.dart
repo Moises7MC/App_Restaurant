@@ -10,32 +10,21 @@ import '../bloc/cash_flow_event.dart';
 import '../../domain/entities/cart_item.dart';
 import '../../../../services/api_service.dart';
 
-/// Página del carrito de compras
-///
-/// Muestra:
-/// - Lista de items en el carrito
-/// - Cantidad y precio de cada item
-/// - Subtotal y total
-/// - Botón para confirmar el pedido
 class CartPage extends StatelessWidget {
-  /// Tipo de comida seleccionada
   final String mealType;
-
-  /// Número de mesa
   final int tableNumber;
+  final Map<int, int> itemsFromBackend;
 
   const CartPage({
     super.key,
     required this.mealType,
     required this.tableNumber,
+    this.itemsFromBackend = const {},
   });
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // ════════════════════════════════════
-      // APP BAR
-      // ════════════════════════════════════
       appBar: AppBar(
         title: Text('Mi pedido - Mesa $tableNumber'),
         elevation: 0,
@@ -44,9 +33,6 @@ class CartPage extends StatelessWidget {
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      // ════════════════════════════════════
-      // BODY
-      // ════════════════════════════════════
       body: SafeArea(
         child: BlocBuilder<CartBloc, CartState>(
           builder: (context, state) {
@@ -55,9 +41,7 @@ class CartPage extends StatelessWidget {
 
               return Column(
                 children: [
-                  // ════════════════════════════════════
                   // LISTA DE ITEMS
-                  // ════════════════════════════════════
                   Expanded(
                     child: items.isEmpty
                         ? Center(
@@ -78,9 +62,8 @@ class CartPage extends StatelessWidget {
                             ),
                           ),
                   ),
-                  // ════════════════════════════════════
+
                   // RESUMEN Y BOTONES
-                  // ════════════════════════════════════
                   Container(
                     padding: const EdgeInsets.all(24.0),
                     decoration: BoxDecoration(
@@ -100,9 +83,7 @@ class CartPage extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // ════════════════════════════════════
                         // DESGLOSE DE PRECIOS
-                        // ════════════════════════════════════
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -117,7 +98,6 @@ class CartPage extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 8),
-                        // Descuento (placeholder)
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -133,12 +113,10 @@ class CartPage extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 16),
-                        // Línea divisoria
                         Divider(color: AppColors.border, thickness: 1),
                         const SizedBox(height: 16),
-                        // ════════════════════════════════════
+
                         // TOTAL
-                        // ════════════════════════════════════
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -161,9 +139,8 @@ class CartPage extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 24),
-                        // ════════════════════════════════════
-                        // BOTONES: CONFIRMAR PEDIDO Y LIBERAR MESA
-                        // ════════════════════════════════════
+
+                        // BOTONES
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
@@ -172,7 +149,6 @@ class CartPage extends StatelessWidget {
                               onPressed: () async {
                                 if (state.totalItems > 0) {
                                   try {
-                                    // Buscar si existe orden pendiente en esta mesa hoy
                                     final lastOrder =
                                         await ApiService.getLastPendingOrder(
                                           tableNumber,
@@ -181,27 +157,48 @@ class CartPage extends StatelessWidget {
                                     List<Map<String, dynamic>> itemsToSend = [];
 
                                     if (lastOrder != null) {
-                                      // Existe orden → Enviar TODOS los items actuales
-                                      // (el backend se encargará de no duplicar)
                                       print(
                                         'Orden existente encontrada: ${lastOrder['id']}',
                                       );
 
+                                      // ← SOLO ENVIAR ITEMS NUEVOS
                                       itemsToSend = state.items
-                                          .map(
-                                            (item) => {
+                                          .where((item) {
+                                            final backendQty =
+                                                itemsFromBackend[item
+                                                    .product
+                                                    .id] ??
+                                                0;
+                                            return item.quantity > backendQty;
+                                          })
+                                          .map((item) {
+                                            final backendQty =
+                                                itemsFromBackend[item
+                                                    .product
+                                                    .id] ??
+                                                0;
+                                            return {
                                               'productId': item.product.id,
-                                              'quantity': item.quantity,
+                                              'quantity':
+                                                  item.quantity - backendQty,
                                               'unitPrice': item.product.price,
-                                            },
-                                          )
+                                            };
+                                          })
                                           .toList();
 
-                                      // Actualizar total de la orden
-                                      await ApiService.updateOrderTotal(
-                                        lastOrder['id'],
-                                        state.total,
-                                      );
+                                      if (itemsToSend.isEmpty) {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'No hay items nuevos para enviar',
+                                            ),
+                                            backgroundColor: AppColors.warning,
+                                          ),
+                                        );
+                                        return;
+                                      }
 
                                       await ApiService.addItemToExistingOrder(
                                         lastOrder['id'],
@@ -218,8 +215,10 @@ class CartPage extends StatelessWidget {
                                           backgroundColor: AppColors.success,
                                         ),
                                       );
+                                      context.read<CartBloc>().add(
+                                        LimpiarCarrito(),
+                                      );
                                     } else {
-                                      // No existe orden → Crear nueva
                                       print('Creando nueva orden');
 
                                       final orderData = {
@@ -249,6 +248,9 @@ class CartPage extends StatelessWidget {
                                           ),
                                           backgroundColor: AppColors.success,
                                         ),
+                                      );
+                                      context.read<CartBloc>().add(
+                                        LimpiarCarrito(),
                                       );
                                     }
 
@@ -289,6 +291,7 @@ class CartPage extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 12),
+
                             // Botón Liberar Mesa
                             ElevatedButton(
                               onPressed: () {
@@ -368,7 +371,6 @@ class CartPage extends StatelessWidget {
     );
   }
 
-  /// Widget para construir cada item del carrito
   Widget _buildCartItemCard(BuildContext context, CartItem item) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -386,9 +388,6 @@ class CartPage extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // ════════════════════════════════════
-          // IMAGEN
-          // ════════════════════════════════════
           Container(
             width: 60,
             height: 60,
@@ -401,14 +400,10 @@ class CartPage extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 16),
-          // ════════════════════════════════════
-          // INFORMACIÓN
-          // ════════════════════════════════════
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Nombre
                 Text(
                   item.product.name,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -419,7 +414,6 @@ class CartPage extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
-                // Cantidad y precio unitario
                 Text(
                   '${item.quantity}x S/. ${item.product.price.toStringAsFixed(2)}',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -430,9 +424,6 @@ class CartPage extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 16),
-          // ════════════════════════════════════
-          // TOTAL DEL ITEM
-          // ════════════════════════════════════
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [

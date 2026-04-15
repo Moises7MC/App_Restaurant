@@ -5,10 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/routes/app_router.dart';
+import '../../../../services/api_service.dart';
 
 class TablesPage extends StatefulWidget {
   final String mealType;
-
   const TablesPage({super.key, required this.mealType});
 
   @override
@@ -16,6 +16,36 @@ class TablesPage extends StatefulWidget {
 }
 
 class _TablesPageState extends State<TablesPage> {
+  // Mesas ocupadas desde el backend
+  Set<int> _occupiedFromBackend = {};
+  bool _loadingTables = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOccupiedTables();
+  }
+
+  // Carga las mesas ocupadas desde el backend
+  Future<void> _loadOccupiedTables() async {
+    try {
+      final occupied = await ApiService.getOccupiedTableNumbers();
+      if (mounted) {
+        setState(() {
+          _occupiedFromBackend = occupied.toSet();
+          _loadingTables = false;
+        });
+      }
+    } catch (e) {
+      print('Error cargando mesas: $e');
+      if (mounted) {
+        setState(() {
+          _loadingTables = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final tables = _generateTables();
@@ -28,38 +58,51 @@ class _TablesPageState extends State<TablesPage> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.goToMeals(),
         ),
+        // Botón para refrescar mesas
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              setState(() => _loadingTables = true);
+              _loadOccupiedTables();
+            },
+          ),
+        ],
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Elige una mesa disponible',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textSecondary,
+        child: _loadingTables
+            ? const Center(child: CircularProgressIndicator())
+            : Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Elige una mesa disponible',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Expanded(
+                      child: GridView.builder(
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              crossAxisSpacing: 16,
+                              mainAxisSpacing: 16,
+                              childAspectRatio: 1.0,
+                            ),
+                        itemCount: tables.length,
+                        itemBuilder: (context, index) {
+                          final table = tables[index];
+                          return _buildTableCard(context, table);
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 24),
-              Expanded(
-                child: GridView.builder(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                    childAspectRatio: 1.0,
-                  ),
-                  itemCount: tables.length,
-                  itemBuilder: (context, index) {
-                    final table = tables[index];
-                    return _buildTableCard(context, table);
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -68,10 +111,15 @@ class _TablesPageState extends State<TablesPage> {
     return BlocBuilder<CartBloc, CartState>(
       builder: (context, state) {
         final cartBloc = context.read<CartBloc>();
-        final isOccupied = cartBloc.isTableOccupied(
+
+        // Ocupada si está en el backend O si tiene items en el carrito local
+        final isOccupiedLocal = cartBloc.isTableOccupied(
           widget.mealType,
           table.number,
         );
+        final isOccupiedBackend = _occupiedFromBackend.contains(table.number);
+        final isOccupied = isOccupiedLocal || isOccupiedBackend;
+
         final itemCount = cartBloc.getTableItemCount(
           widget.mealType,
           table.number,
@@ -132,7 +180,7 @@ class _TablesPageState extends State<TablesPage> {
                 const SizedBox(height: 4),
                 if (isOccupied)
                   Text(
-                    '🔴 Ocupada ($itemCount items)',
+                    '🔴 Ocupada',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: AppColors.primary,
                       fontWeight: FontWeight.bold,

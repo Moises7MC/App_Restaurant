@@ -218,4 +218,34 @@ class ApiService {
       rethrow;
     }
   }
+
+  // GET: Obtener todas las órdenes activas de hoy
+  static Future<List<int>> getOccupiedTableNumbers() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/order'));
+      if (response.statusCode == 200) {
+        List<dynamic> orders = jsonDecode(response.body);
+        DateTime today = DateTime.now();
+
+        // Filtrar órdenes de hoy que estén activas
+        var activeOrders = orders.where((o) {
+          DateTime createdAt = DateTime.parse(o['createdAt']);
+          return createdAt.day == today.day &&
+              createdAt.month == today.month &&
+              createdAt.year == today.year &&
+              (o['status'] == 'Enviado a cocina' || o['status'] == 'Pendiente');
+        }).toList();
+
+        // Retornar solo los números de mesa
+        return activeOrders
+            .map<int>((o) => o['tableNumber'] as int)
+            .toSet()
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      print('Error getOccupiedTableNumbers: $e');
+      return [];
+    }
+  }
 }

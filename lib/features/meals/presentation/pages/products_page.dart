@@ -6,6 +6,7 @@ import '../../../meals/domain/entities/product.dart';
 import '../bloc/cart_bloc.dart';
 import '../bloc/cart_event.dart';
 import '../bloc/cart_state.dart';
+import '../../../../services/api_service.dart';
 import '../pages/cart_page.dart';
 
 class ProductsPage extends StatefulWidget {
@@ -23,6 +24,8 @@ class ProductsPage extends StatefulWidget {
 }
 
 class _ProductsPageState extends State<ProductsPage> {
+  final Map<int, int> _itemsFromBackend = {};
+
   @override
   void initState() {
     super.initState();
@@ -32,6 +35,39 @@ class _ProductsPageState extends State<ProductsPage> {
     context.read<CartBloc>().add(
       SelectTable(mealType: widget.mealType, tableNumber: widget.tableNumber),
     );
+    _loadExistingOrder();
+  }
+
+  Future<void> _loadExistingOrder() async {
+    try {
+      final lastOrder = await ApiService.getLastPendingOrder(
+        widget.tableNumber,
+      );
+      if (lastOrder != null && mounted) {
+        final items = lastOrder['items'] as List<dynamic>;
+        for (var item in items) {
+          final productId = item['productId'] as int;
+          final quantity = item['quantity'] as int;
+
+          // ← AGREGA ESTA LÍNEA
+          _itemsFromBackend[productId] = quantity;
+
+          final product = Product(
+            id: productId,
+            name: item['product']?['name'] ?? 'Producto',
+            price: (item['unitPrice'] as num).toDouble(),
+            description: '',
+            imageUrl: '',
+            category: widget.mealType,
+          );
+          for (int i = 0; i < quantity; i++) {
+            context.read<CartBloc>().add(AddToCart(product));
+          }
+        }
+      }
+    } catch (e) {
+      print('Error cargando orden existente: $e');
+    }
   }
 
   @override
@@ -120,6 +156,7 @@ class _ProductsPageState extends State<ProductsPage> {
                             builder: (context) => CartPage(
                               mealType: widget.mealType,
                               tableNumber: widget.tableNumber,
+                              itemsFromBackend: _itemsFromBackend,
                             ),
                           ),
                         );
