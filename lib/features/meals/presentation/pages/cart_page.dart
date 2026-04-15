@@ -171,26 +171,86 @@ class CartPage extends StatelessWidget {
                             ElevatedButton(
                               onPressed: () async {
                                 if (state.totalItems > 0) {
-                                  // Crear la orden para enviar al backend
-                                  final orderData = {
-                                    'tableNumber': tableNumber,
-                                    'mealType': mealType,
-                                    'items': state.items
-                                        .map(
-                                          (item) => {
-                                            'productId': item.product.id,
-                                            'quantity': item.quantity,
-                                            'unitPrice': item.product.price,
-                                          },
-                                        )
-                                        .toList(),
-                                    'total': state.total,
-                                    'status': 'Enviado a cocina',
-                                  };
-
                                   try {
-                                    // Enviar orden al backend
-                                    await ApiService.createOrder(orderData);
+                                    // Buscar si existe orden pendiente en esta mesa hoy
+                                    final lastOrder =
+                                        await ApiService.getLastPendingOrder(
+                                          tableNumber,
+                                        );
+
+                                    List<Map<String, dynamic>> itemsToSend = [];
+
+                                    if (lastOrder != null) {
+                                      // Existe orden → Enviar TODOS los items actuales
+                                      // (el backend se encargará de no duplicar)
+                                      print(
+                                        'Orden existente encontrada: ${lastOrder['id']}',
+                                      );
+
+                                      itemsToSend = state.items
+                                          .map(
+                                            (item) => {
+                                              'productId': item.product.id,
+                                              'quantity': item.quantity,
+                                              'unitPrice': item.product.price,
+                                            },
+                                          )
+                                          .toList();
+
+                                      // Actualizar total de la orden
+                                      await ApiService.updateOrderTotal(
+                                        lastOrder['id'],
+                                        state.total,
+                                      );
+
+                                      await ApiService.addItemToExistingOrder(
+                                        lastOrder['id'],
+                                        itemsToSend,
+                                      );
+
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Items agregados a la orden existente',
+                                          ),
+                                          backgroundColor: AppColors.success,
+                                        ),
+                                      );
+                                    } else {
+                                      // No existe orden → Crear nueva
+                                      print('Creando nueva orden');
+
+                                      final orderData = {
+                                        'tableNumber': tableNumber,
+                                        'mealType': mealType,
+                                        'items': state.items
+                                            .map(
+                                              (item) => {
+                                                'productId': item.product.id,
+                                                'quantity': item.quantity,
+                                                'unitPrice': item.product.price,
+                                              },
+                                            )
+                                            .toList(),
+                                        'total': state.total,
+                                        'status': 'Enviado a cocina',
+                                      };
+
+                                      await ApiService.createOrder(orderData);
+
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Pedido enviado a cocina',
+                                          ),
+                                          backgroundColor: AppColors.success,
+                                        ),
+                                      );
+                                    }
 
                                     // Agregar ingreso al CashFlowBloc
                                     context.read<CashFlowBloc>().add(
@@ -199,15 +259,6 @@ class CartPage extends StatelessWidget {
                                         description:
                                             'Venta - Mesa $tableNumber',
                                         tableNumber: tableNumber,
-                                      ),
-                                    );
-
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Pedido enviado a cocina',
-                                        ),
-                                        backgroundColor: AppColors.success,
                                       ),
                                     );
 

@@ -3,25 +3,30 @@ import 'dart:convert';
 import 'dart:io';
 
 class ApiService {
-  static const String baseUrl = 'https://localhost:7235/api';
+  // static const String baseUrl = 'https://app-restaurant-api.onrender.com/api';
+  static const String baseUrl = 'http://localhost:5245/api';
 
-  // Permitir certificados SSL auto-firmados (solo para desarrollo)
-  static final HttpClient httpClient = HttpClient()
-    ..badCertificateCallback = (X509Certificate cert, String host, int port) =>
-        true;
+  // HttpClient que ignora certificados SSL (para desarrollo)
+  static HttpClient _getHttpClient() {
+    final httpClient = HttpClient();
+    httpClient.badCertificateCallback = (cert, host, port) => true;
+    return httpClient;
+  }
 
   // GET: Obtener todos los productos
   static Future<List<dynamic>> getProducts() async {
     try {
+      print('📡 Conectando a: $baseUrl/product');
       final response = await http.get(Uri.parse('$baseUrl/product'));
+      print('✓ Respuesta: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       } else {
-        throw Exception('Error al cargar productos');
+        throw Exception('Error: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error: $e');
+      print('✗ Error getProducts: $e');
       rethrow;
     }
   }
@@ -29,22 +34,23 @@ class ApiService {
   // POST: Crear una nueva orden
   static Future<dynamic> createOrder(Map<String, dynamic> orderData) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/order'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(orderData),
-      );
+      print('📡 Enviando orden a: $baseUrl/order');
 
-      print('Status: ${response.statusCode}');
-      print('Response: ${response.body}');
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/order'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(orderData),
+          )
+          .timeout(const Duration(seconds: 60)); // ← aumentar timeout
 
       if (response.statusCode == 201) {
         return jsonDecode(response.body);
       } else {
-        throw Exception('Error al crear orden: ${response.body}');
+        throw Exception('Error: ${response.body}');
       }
     } catch (e) {
-      print('Error: $e');
+      print('✗ Error createOrder: $e');
       rethrow;
     }
   }
@@ -60,7 +66,6 @@ class ApiService {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(itemData),
       );
-
       if (response.statusCode == 201) {
         return jsonDecode(response.body);
       } else {
@@ -80,7 +85,6 @@ class ApiService {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(status),
       );
-
       if (response.statusCode != 204) {
         throw Exception('Error al actualizar orden');
       }
@@ -96,7 +100,6 @@ class ApiService {
       final response = await http.get(
         Uri.parse('$baseUrl/order/table/$tableNumber'),
       );
-
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       } else {
@@ -114,7 +117,6 @@ class ApiService {
       final response = await http.get(
         Uri.parse('$baseUrl/transaction/summary'),
       );
-
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       } else {
@@ -136,11 +138,80 @@ class ApiService {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(transactionData),
       );
-
       if (response.statusCode == 201) {
         return jsonDecode(response.body);
       } else {
         throw Exception('Error al crear transacción');
+      }
+    } catch (e) {
+      print('Error: $e');
+      rethrow;
+    }
+  }
+
+  // GET: Obtener última orden pendiente de una mesa hoy
+  static Future<dynamic> getLastPendingOrder(int tableNumber) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/order/table/$tableNumber'),
+      );
+
+      if (response.statusCode == 200) {
+        List<dynamic> orders = jsonDecode(response.body);
+
+        // Filtrar por hoy y estado pendiente
+        DateTime today = DateTime.now();
+        var todayOrders = orders.where((o) {
+          DateTime createdAt = DateTime.parse(o['createdAt']);
+          return createdAt.day == today.day &&
+              createdAt.month == today.month &&
+              createdAt.year == today.year &&
+              (o['status'] == 'Enviado a cocina' || o['status'] == 'Pendiente');
+        }).toList();
+
+        return todayOrders.isNotEmpty ? todayOrders.last : null;
+      }
+      return null;
+    } catch (e) {
+      print('Error: $e');
+      return null;
+    }
+  }
+
+  // POST: Agregar items a una orden existente
+  static Future<dynamic> addItemToExistingOrder(
+    int orderId,
+    List<Map<String, dynamic>> items,
+  ) async {
+    try {
+      for (var item in items) {
+        final response = await http.post(
+          Uri.parse('$baseUrl/order/$orderId/item'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(item),
+        );
+
+        if (response.statusCode != 201) {
+          throw Exception('Error agregando item');
+        }
+      }
+      return true;
+    } catch (e) {
+      print('Error: $e');
+      rethrow;
+    }
+  }
+
+  // PUT: Actualizar total de orden
+  static Future<void> updateOrderTotal(int orderId, double total) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/order/$orderId'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'total': total}),
+      );
+      if (response.statusCode != 204) {
+        throw Exception('Error al actualizar total');
       }
     } catch (e) {
       print('Error: $e');

@@ -18,6 +18,7 @@ class CartBloc extends Bloc<CartEvent, CartState> {
     on<ClearCart>(_onClearCart);
     on<SelectTable>(_onSelectTable);
     on<LiberarMesa>(_onLiberarMesa);
+    on<LimpiarCarrito>(_onLimpiarCarrito); // ← AGREGA ESTA LÍNEA
   }
 
   /// Genera la clave única para una mesa
@@ -199,6 +200,20 @@ class CartBloc extends Bloc<CartEvent, CartState> {
       }
     } catch (e) {
       emit(CartError('Error al liberar mesa: $e'));
+    }
+  }
+
+  /// Maneja el evento LimpiarCarrito
+  /// Limpia solo el carrito de la mesa actual
+  Future<void> _onLimpiarCarrito(
+    LimpiarCarrito event,
+    Emitter<CartState> emit,
+  ) async {
+    try {
+      _cartsByTable[_currentTableKey] = [];
+      emit(CartEmpty());
+    } catch (e) {
+      emit(CartError('Error al limpiar carrito: $e'));
     }
   }
 }

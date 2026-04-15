@@ -94,3 +94,7 @@ class LiberarMesa extends CartEvent {
   String toString() =>
       'LiberarMesa(mealType: $mealType, tableNumber: $tableNumber)';
 }
+
+class LimpiarCarrito extends CartEvent {
+  const LimpiarCarrito();
+}

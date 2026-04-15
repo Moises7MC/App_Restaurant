@@ -278,7 +278,7 @@ class _LoginPageState extends State<LoginPage> {
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  'Hola 22 Usuarios de prueba',
+                                  'Usuarios de prueba',
                                   style: Theme.of(context).textTheme.titleLarge
                                       ?.copyWith(color: AppColors.primary),
                                 ),
