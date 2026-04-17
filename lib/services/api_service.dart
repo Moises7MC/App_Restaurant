@@ -6,20 +6,15 @@ class ApiService {
   // static const String baseUrl = 'https://app-restaurant-api.onrender.com/api';
   static const String baseUrl = 'http://localhost:5245/api';
 
-  // HttpClient que ignora certificados SSL (para desarrollo)
   static HttpClient _getHttpClient() {
     final httpClient = HttpClient();
     httpClient.badCertificateCallback = (cert, host, port) => true;
     return httpClient;
   }
 
-  // GET: Obtener todos los productos
   static Future<List<dynamic>> getProducts() async {
     try {
-      print('📡 Conectando a: $baseUrl/product');
       final response = await http.get(Uri.parse('$baseUrl/product'));
-      print('✓ Respuesta: ${response.statusCode}');
-
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       } else {
@@ -31,18 +26,15 @@ class ApiService {
     }
   }
 
-  // POST: Crear una nueva orden
   static Future<dynamic> createOrder(Map<String, dynamic> orderData) async {
     try {
-      print('📡 Enviando orden a: $baseUrl/order');
-
       final response = await http
           .post(
             Uri.parse('$baseUrl/order'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(orderData),
           )
-          .timeout(const Duration(seconds: 60)); // ← aumentar timeout
+          .timeout(const Duration(seconds: 60));
 
       if (response.statusCode == 201) {
         return jsonDecode(response.body);
@@ -55,7 +47,6 @@ class ApiService {
     }
   }
 
-  // POST: Agregar item a una orden
   static Future<dynamic> addItemToOrder(
     int orderId,
     Map<String, dynamic> itemData,
@@ -77,7 +68,6 @@ class ApiService {
     }
   }
 
-  // PUT: Actualizar estado de orden
   static Future<void> updateOrderStatus(int orderId, String status) async {
     try {
       final response = await http.put(
@@ -94,7 +84,6 @@ class ApiService {
     }
   }
 
-  // GET: Obtener órdenes por mesa
   static Future<List<dynamic>> getOrdersByTable(int tableNumber) async {
     try {
       final response = await http.get(
@@ -111,7 +100,6 @@ class ApiService {
     }
   }
 
-  // GET: Obtener resumen de transacciones
   static Future<dynamic> getTransactionSummary() async {
     try {
       final response = await http.get(
@@ -128,7 +116,6 @@ class ApiService {
     }
   }
 
-  // POST: Crear transacción
   static Future<dynamic> createTransaction(
     Map<String, dynamic> transactionData,
   ) async {
@@ -149,7 +136,6 @@ class ApiService {
     }
   }
 
-  // GET: Obtener última orden pendiente de una mesa hoy
   static Future<dynamic> getLastPendingOrder(int tableNumber) async {
     try {
       final response = await http.get(
@@ -158,8 +144,6 @@ class ApiService {
 
       if (response.statusCode == 200) {
         List<dynamic> orders = jsonDecode(response.body);
-
-        // Filtrar por hoy y estado pendiente
         DateTime today = DateTime.now();
         var todayOrders = orders.where((o) {
           DateTime createdAt = DateTime.parse(o['createdAt']).toLocal();
@@ -168,7 +152,6 @@ class ApiService {
               createdAt.year == today.year &&
               (o['status'] == 'Enviado a cocina' || o['status'] == 'Pendiente');
         }).toList();
-
         return todayOrders.isNotEmpty ? todayOrders.last : null;
       }
       return null;
@@ -178,19 +161,16 @@ class ApiService {
     }
   }
 
-  // POST: Agregar items a una orden existente
   static Future<dynamic> addItemToExistingOrder(
     int orderId,
     List<Map<String, dynamic>> items,
   ) async {
     try {
-      // Un solo request con todos los items juntos
       final response = await http.post(
         Uri.parse('$baseUrl/order/$orderId/items-batch'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(items),
       );
-
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       } else {
@@ -202,7 +182,6 @@ class ApiService {
     }
   }
 
-  // PUT: Actualizar total de orden
   static Future<void> updateOrderTotal(int orderId, double total) async {
     try {
       final response = await http.put(
@@ -219,15 +198,12 @@ class ApiService {
     }
   }
 
-  // GET: Obtener todas las órdenes activas de hoy
   static Future<List<int>> getOccupiedTableNumbers() async {
     try {
       final response = await http.get(Uri.parse('$baseUrl/order'));
       if (response.statusCode == 200) {
         List<dynamic> orders = jsonDecode(response.body);
         DateTime today = DateTime.now();
-
-        // Filtrar órdenes de hoy que estén activas
         var activeOrders = orders.where((o) {
           DateTime createdAt = DateTime.parse(o['createdAt']).toLocal();
           return createdAt.day == today.day &&
@@ -235,8 +211,6 @@ class ApiService {
               createdAt.year == today.year &&
               (o['status'] == 'Enviado a cocina' || o['status'] == 'Pendiente');
         }).toList();
-
-        // Retornar solo los números de mesa
         return activeOrders
             .map<int>((o) => o['tableNumber'] as int)
             .toSet()
@@ -246,6 +220,53 @@ class ApiService {
     } catch (e) {
       print('Error getOccupiedTableNumbers: $e');
       return [];
+    }
+  }
+
+  // ════════════════════════════════════════════
+  // NUEVO: Modificar cantidad de un item
+  // PUT /api/order/{orderId}/item/{itemId}
+  // ════════════════════════════════════════════
+  static Future<dynamic> updateItemQuantity(
+    int orderId,
+    int itemId,
+    int newQuantity,
+  ) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/order/$orderId/item/$itemId'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'quantity': newQuantity}),
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Error al modificar item: ${response.body}');
+      }
+    } catch (e) {
+      print('Error updateItemQuantity: $e');
+      rethrow;
+    }
+  }
+
+  // ════════════════════════════════════════════
+  // NUEVO: Eliminar un item de la orden
+  // DELETE /api/order/{orderId}/item/{itemId}
+  // ════════════════════════════════════════════
+  static Future<dynamic> removeItemFromOrder(int orderId, int itemId) async {
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl/order/$orderId/item/$itemId'),
+        headers: {'Content-Type': 'application/json'},
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Error al eliminar item: ${response.body}');
+      }
+    } catch (e) {
+      print('Error removeItemFromOrder: $e');
+      rethrow;
     }
   }
 }

@@ -24,14 +24,18 @@ class ProductsPage extends StatefulWidget {
 }
 
 class _ProductsPageState extends State<ProductsPage> {
+  // productId -> cantidad que ya está en el backend
   final Map<int, int> _itemsFromBackend = {};
+
+  // productId -> itemId real en la BD (para editar/eliminar)
+  final Map<int, int> _backendItemIds = {};
+
+  // ID de la orden activa en el backend
+  int? _activeOrderId;
 
   @override
   void initState() {
     super.initState();
-
-    // Cuando se abre ProductsPage, le decimos al CartBloc
-    // que cargue el carrito de esta mesa
     context.read<CartBloc>().add(
       SelectTable(mealType: widget.mealType, tableNumber: widget.tableNumber),
     );
@@ -45,12 +49,20 @@ class _ProductsPageState extends State<ProductsPage> {
       );
       if (lastOrder != null && mounted) {
         final items = lastOrder['items'] as List<dynamic>;
+
+        // Guardar el ID de la orden activa
+        setState(() {
+          _activeOrderId = lastOrder['id'] as int;
+        });
+
         for (var item in items) {
           final productId = item['productId'] as int;
           final quantity = item['quantity'] as int;
+          final itemId = item['id'] as int; // ← ID real del OrderItem
 
-          // ← AGREGA ESTA LÍNEA
+          // Guardar cantidad y itemId del backend
           _itemsFromBackend[productId] = quantity;
+          _backendItemIds[productId] = itemId;
 
           final product = Product(
             id: productId,
@@ -60,6 +72,8 @@ class _ProductsPageState extends State<ProductsPage> {
             imageUrl: '',
             category: widget.mealType,
           );
+
+          // Cargar en el carrito local
           for (int i = 0; i < quantity; i++) {
             context.read<CartBloc>().add(AddToCart(product));
           }
@@ -108,9 +122,7 @@ class _ProductsPageState extends State<ProductsPage> {
                   BlocBuilder<CartBloc, CartState>(
                     builder: (context, state) {
                       int totalItems = 0;
-                      if (state is CartLoaded) {
-                        totalItems = state.totalItems;
-                      }
+                      if (state is CartLoaded) totalItems = state.totalItems;
                       return Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
@@ -142,6 +154,8 @@ class _ProductsPageState extends State<ProductsPage> {
                 ],
               ),
             ),
+
+            // Botón flotante "Ver Carrito"
             BlocBuilder<CartBloc, CartState>(
               builder: (context, state) {
                 if (state is CartLoaded && state.totalItems > 0) {
@@ -157,6 +171,10 @@ class _ProductsPageState extends State<ProductsPage> {
                               mealType: widget.mealType,
                               tableNumber: widget.tableNumber,
                               itemsFromBackend: _itemsFromBackend,
+                              // ← Pasar el ID de la orden activa
+                              activeOrderId: _activeOrderId,
+                              // ← Pasar los itemIds reales del backend
+                              backendItemIds: _backendItemIds,
                             ),
                           ),
                         );
@@ -200,9 +218,7 @@ class _ProductsPageState extends State<ProductsPage> {
           final item = state.items
               .where((item) => item.product.id == product.id)
               .firstOrNull;
-          if (item != null) {
-            quantity = item.quantity;
-          }
+          if (item != null) quantity = item.quantity;
         }
 
         return Container(
@@ -228,9 +244,7 @@ class _ProductsPageState extends State<ProductsPage> {
                   image: DecorationImage(
                     image: AssetImage(product.imageUrl),
                     fit: BoxFit.cover,
-                    onError: (exception, stackTrace) {
-                      print('Error cargando imagen: ${product.imageUrl}');
-                    },
+                    onError: (exception, stackTrace) {},
                   ),
                 ),
               ),
@@ -279,11 +293,9 @@ class _ProductsPageState extends State<ProductsPage> {
                       children: [
                         GestureDetector(
                           onTap: quantity > 0
-                              ? () {
-                                  context.read<CartBloc>().add(
-                                    RemoveFromCart(product.id),
-                                  );
-                                }
+                              ? () => context.read<CartBloc>().add(
+                                  RemoveFromCart(product.id),
+                                )
                               : null,
                           child: Container(
                             width: 32,
@@ -322,9 +334,8 @@ class _ProductsPageState extends State<ProductsPage> {
                         ),
                         const SizedBox(width: 12),
                         GestureDetector(
-                          onTap: () {
-                            context.read<CartBloc>().add(AddToCart(product));
-                          },
+                          onTap: () =>
+                              context.read<CartBloc>().add(AddToCart(product)),
                           child: Container(
                             width: 32,
                             height: 32,
@@ -352,13 +363,13 @@ class _ProductsPageState extends State<ProductsPage> {
   }
 
   List<Product> _generateProducts() {
-    final products = <Product>[
+    return [
       Product(
         id: 1,
         name: 'Pollo a la parrilla',
         price: 13,
         description: 'Sale con papas fritas o papas sanchadas',
-        imageUrl: 'assets/images/pollo_parrilla.jpg', // ← COMPLETO
+        imageUrl: 'assets/images/pollo_parrilla.jpg',
         category: widget.mealType,
       ),
       Product(
@@ -394,6 +405,5 @@ class _ProductsPageState extends State<ProductsPage> {
         category: widget.mealType,
       ),
     ];
-    return products;
   }
 }
