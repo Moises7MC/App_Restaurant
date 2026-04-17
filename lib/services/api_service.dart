@@ -162,7 +162,7 @@ class ApiService {
         // Filtrar por hoy y estado pendiente
         DateTime today = DateTime.now();
         var todayOrders = orders.where((o) {
-          DateTime createdAt = DateTime.parse(o['createdAt']);
+          DateTime createdAt = DateTime.parse(o['createdAt']).toLocal();
           return createdAt.day == today.day &&
               createdAt.month == today.month &&
               createdAt.year == today.year &&
@@ -184,18 +184,18 @@ class ApiService {
     List<Map<String, dynamic>> items,
   ) async {
     try {
-      for (var item in items) {
-        final response = await http.post(
-          Uri.parse('$baseUrl/order/$orderId/item'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode(item),
-        );
+      // Un solo request con todos los items juntos
+      final response = await http.post(
+        Uri.parse('$baseUrl/order/$orderId/items-batch'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(items),
+      );
 
-        if (response.statusCode != 201) {
-          throw Exception('Error agregando item');
-        }
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Error agregando items: ${response.body}');
       }
-      return true;
     } catch (e) {
       print('Error: $e');
       rethrow;
@@ -229,7 +229,7 @@ class ApiService {
 
         // Filtrar órdenes de hoy que estén activas
         var activeOrders = orders.where((o) {
-          DateTime createdAt = DateTime.parse(o['createdAt']);
+          DateTime createdAt = DateTime.parse(o['createdAt']).toLocal();
           return createdAt.day == today.day &&
               createdAt.month == today.month &&
               createdAt.year == today.year &&
