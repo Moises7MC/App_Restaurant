@@ -2,8 +2,9 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 class ApiService {
-  static const String baseUrl = 'http://localhost:5245/api';
-
+  // static const String baseUrl = 'http://localhost:5245/api';
+  static const String baseUrl =
+      'https://app-restaurant-api.onrender.com/hubs/orders';
   // ════════════════════════════════════════════════════════════
   // AUTH
   // ════════════════════════════════════════════════════════════

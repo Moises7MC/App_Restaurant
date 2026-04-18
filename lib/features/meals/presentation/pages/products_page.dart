@@ -41,7 +41,8 @@ class _ProductsPageState extends State<ProductsPage> {
   bool _signalRConnected = false;
   bool _refreshing = false;
 
-  static const String _hubUrl = 'http://localhost:5245/hubs/orders';
+  // static const String _hubUrl = 'http://localhost:5245/hubs/orders';
+  static const String _hubUrl = 'https://app-restaurant-api.onrender.com/api';
 
   @override
   void initState() {
