@@ -5,17 +5,6 @@ import '../bloc/auth_event.dart';
 import '../bloc/auth_state.dart';
 import '../../../../core/constants/app_colors.dart';
 
-/// Pantalla de Login
-///
-/// Permite al usuario autenticarse con email y contraseña.
-/// Usa BLoC para manejar el estado de autenticación.
-///
-/// Características:
-/// - Validación de formulario
-/// - Mostrar/ocultar contraseña
-/// - Loading state
-/// - Manejo de errores
-/// - Diseño basado en las capturas proporcionadas
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -24,32 +13,23 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  /// Key para el formulario (permite validar)
   final _formKey = GlobalKey<FormState>();
-
-  /// Controllers para los campos de texto
-  final _emailController = TextEditingController();
+  final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
-
-  /// Controla si la contraseña es visible
   bool _obscurePassword = true;
 
   @override
   void dispose() {
-    // IMPORTANTE: Siempre limpiar los controllers
-    _emailController.dispose();
+    _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
-  /// Maneja el evento de login
   void _handleLogin() {
-    // Validar el formulario
     if (_formKey.currentState!.validate()) {
-      // Enviar evento al BLoC
       context.read<AuthBloc>().add(
         LoginButtonPressed(
-          email: _emailController.text.trim(),
+          email: _usernameController.text.trim(), // 'email' aquí es el username
           password: _passwordController.text,
         ),
       );
@@ -59,11 +39,8 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // BlocConsumer: Escucha estados Y ejecuta acciones
       body: BlocConsumer<AuthBloc, AuthState>(
-        // LISTENER: Ejecuta acciones (no reconstruye UI)
         listener: (context, state) {
-          // Si hay error, mostrar SnackBar
           if (state is AuthError) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -78,8 +55,6 @@ class _LoginPageState extends State<LoginPage> {
             );
           }
         },
-
-        // BUILDER: Construye la UI según el estado
         builder: (context, state) {
           return SafeArea(
             child: SingleChildScrollView(
@@ -92,9 +67,7 @@ class _LoginPageState extends State<LoginPage> {
                     children: [
                       const SizedBox(height: 60),
 
-                      // ════════════════════════════════════
-                      // LOGO
-                      // ════════════════════════════════════
+                      // ── LOGO ──
                       Center(
                         child: Container(
                           width: 120,
@@ -120,43 +93,37 @@ class _LoginPageState extends State<LoginPage> {
 
                       const SizedBox(height: 40),
 
-                      // ════════════════════════════════════
-                      // TÍTULO
-                      // ════════════════════════════════════
+                      // ── TÍTULO ──
                       Text(
-                        'Bienvenido',
-                        style: Theme.of(context).textTheme.displayMedium,
+                        'Como en Casa',
+                        style: Theme.of(context).textTheme.displayMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
                         textAlign: TextAlign.center,
                       ),
-
                       const SizedBox(height: 8),
-
                       Text(
-                        'Inicia sesión para continuar',
-                        style: Theme.of(context).textTheme.bodyMedium,
+                        'Ingresa tus credenciales',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
                         textAlign: TextAlign.center,
                       ),
 
                       const SizedBox(height: 48),
 
-                      // ════════════════════════════════════
-                      // CAMPO DE EMAIL
-                      // ════════════════════════════════════
+                      // ── CAMPO USUARIO ──
                       TextFormField(
-                        controller: _emailController,
-                        keyboardType: TextInputType.emailAddress,
+                        controller: _usernameController,
+                        keyboardType: TextInputType.text,
                         textInputAction: TextInputAction.next,
                         decoration: const InputDecoration(
-                          labelText: 'Email',
-                          hintText: 'ejemplo@correo.com',
-                          prefixIcon: Icon(Icons.email_outlined),
+                          labelText: 'Usuario',
+                          hintText: 'Ingresa tu usuario',
+                          prefixIcon: Icon(Icons.person_outline),
                         ),
                         validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Por favor ingresa tu email';
-                          }
-                          if (!value.contains('@')) {
-                            return 'Ingresa un email válido';
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Por favor ingresa tu usuario';
                           }
                           return null;
                         },
@@ -164,9 +131,7 @@ class _LoginPageState extends State<LoginPage> {
 
                       const SizedBox(height: 20),
 
-                      // ════════════════════════════════════
-                      // CAMPO DE CONTRASEÑA
-                      // ════════════════════════════════════
+                      // ── CAMPO CONTRASEÑA ──
                       TextFormField(
                         controller: _passwordController,
                         obscureText: _obscurePassword,
@@ -182,57 +147,25 @@ class _LoginPageState extends State<LoginPage> {
                                   ? Icons.visibility_outlined
                                   : Icons.visibility_off_outlined,
                             ),
-                            onPressed: () {
-                              setState(() {
-                                _obscurePassword = !_obscurePassword;
-                              });
-                            },
+                            onPressed: () => setState(
+                              () => _obscurePassword = !_obscurePassword,
+                            ),
                           ),
                         ),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
                             return 'Por favor ingresa tu contraseña';
                           }
-                          if (value.length < 6) {
-                            return 'La contraseña debe tener al menos 6 caracteres';
+                          if (value.length < 4) {
+                            return 'La contraseña debe tener al menos 4 caracteres';
                           }
                           return null;
                         },
                       ),
 
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 40),
 
-                      // ════════════════════════════════════
-                      // ¿OLVIDASTE TU CONTRASEÑA?
-                      // ════════════════════════════════════
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed: () {
-                            // TODO: Implementar recuperación de contraseña
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Función en desarrollo'),
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
-                          },
-                          child: Text(
-                            '¿Olvidaste tu contraseña?',
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(
-                                  color: AppColors.primary,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 32),
-
-                      // ════════════════════════════════════
-                      // BOTÓN DE LOGIN
-                      // ════════════════════════════════════
+                      // ── BOTÓN LOGIN ──
                       SizedBox(
                         height: 56,
                         child: ElevatedButton(
@@ -252,11 +185,9 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
 
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 32),
 
-                      // ════════════════════════════════════
-                      // INFORMACIÓN DE USUARIOS DE PRUEBA
-                      // ════════════════════════════════════
+                      // ── INFO ──
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
@@ -266,35 +197,20 @@ class _LoginPageState extends State<LoginPage> {
                             color: AppColors.primary.withValues(alpha: 0.3),
                           ),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        child: Row(
                           children: [
-                            Row(
-                              children: [
-                                const Icon(
-                                  Icons.info_outline,
-                                  size: 20,
-                                  color: AppColors.primary,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Usuarios de prueba',
-                                  style: Theme.of(context).textTheme.titleLarge
-                                      ?.copyWith(color: AppColors.primary),
-                                ),
-                              ],
+                            const Icon(
+                              Icons.info_outline,
+                              color: AppColors.primary,
+                              size: 20,
                             ),
-                            const SizedBox(height: 12),
-                            _buildTestUserInfo(
-                              'Admin',
-                              'admin@restaurant.com',
-                              '123456',
-                            ),
-                            const SizedBox(height: 8),
-                            _buildTestUserInfo(
-                              'Usuario',
-                              'user@test.com',
-                              '123456',
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Usa el usuario y contraseña que te proporcionó el administrador',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: AppColors.primary),
+                              ),
                             ),
                           ],
                         ),
@@ -307,27 +223,6 @@ class _LoginPageState extends State<LoginPage> {
           );
         },
       ),
-    );
-  }
-
-  /// Widget helper para mostrar info de usuarios de prueba
-  Widget _buildTestUserInfo(String role, String email, String password) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          role,
-          style: Theme.of(
-            context,
-          ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 4),
-        Text('Email: $email', style: Theme.of(context).textTheme.bodySmall),
-        Text(
-          'Contraseña: $password',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-      ],
     );
   }
 }

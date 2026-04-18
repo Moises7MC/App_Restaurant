@@ -66,7 +66,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       print('🔄 Ejecutando LoginUseCase...');
 
       final user = await loginUseCase(
-        LoginParams(email: event.email, password: event.password),
+        LoginParams(username: event.email, password: event.password),
       );
 
       print('✅ Login exitoso: user=${user.email}');
