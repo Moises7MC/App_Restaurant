@@ -169,4 +169,21 @@ class ApiService {
     if (response.statusCode == 200) return jsonDecode(response.body);
     throw Exception('Error al eliminar item: ${response.body}');
   }
+
+  // Agregar este método a api_service.dart
+  static Future<List<dynamic>> getProductsByCategory() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/product/by-category'),
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Error: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('✗ Error getProductsByCategory: $e');
+      rethrow;
+    }
+  }
 }
