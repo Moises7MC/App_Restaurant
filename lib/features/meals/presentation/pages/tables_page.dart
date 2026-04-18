@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:signalr_netcore/signalr_client.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/routes/app_router.dart';
-import '../../../meals/domain/entities/RestaurantTable.dart';
+import '../../../../services/api_service.dart';
 import '../bloc/cart_bloc.dart';
 import '../bloc/cart_state.dart';
-import '../../../../services/api_service.dart';
 
 class TablesPage extends StatefulWidget {
   final String mealType;
@@ -17,93 +15,42 @@ class TablesPage extends StatefulWidget {
 }
 
 class _TablesPageState extends State<TablesPage> {
-  Set<int> _occupiedFromBackend = {};
-  bool _loadingTables = true;
-
-  // SignalR para tiempo real
-  HubConnection? _hubConnection;
+  List<Map<String, dynamic>> _floors = [];
+  bool _loading = true;
+  int _selectedFloor = 0;
 
   @override
   void initState() {
     super.initState();
-    _loadOccupiedTables();
-    _connectSignalR();
+    _loadTables();
   }
 
-  @override
-  void dispose() {
-    _hubConnection?.stop();
-    super.dispose();
-  }
-
-  // ════════════════════════════════════════════════════════════
-  // SIGNALR — Escuchar cambios de mesas en tiempo real
-  // ════════════════════════════════════════════════════════════
-  Future<void> _connectSignalR() async {
+  Future<void> _loadTables() async {
     try {
-      _hubConnection = HubConnectionBuilder()
-          .withUrl('http://localhost:5245/hubs/orders')
-          .withAutomaticReconnect()
-          .build();
-
-      // Escuchar cuando una mesa cambia de estado
-      _hubConnection!.on('MesaCambio', (args) {
-        if (args != null && args.isNotEmpty && mounted) {
-          final data = args[0] as Map<String, dynamic>?;
-          if (data != null) {
-            final tableNumber = data['tableNumber'] as int;
-            final isOccupied = data['isOccupied'] as bool;
-
-            setState(() {
-              if (isOccupied) {
-                _occupiedFromBackend.add(tableNumber);
-              } else {
-                _occupiedFromBackend.remove(tableNumber);
-              }
-            });
-          }
-        }
-      });
-
-      // Escuchar actualizaciones de pedidos (también afecta las mesas)
-      _hubConnection!.on('ActualizacionPedido', (args) {
-        // Recargar mesas cuando hay una actualización general
-        _loadOccupiedTables();
-      });
-
-      _hubConnection!.on('NuevoPedido', (args) {
-        _loadOccupiedTables();
-      });
-
-      await _hubConnection!.start();
-
-      // Unirse al grupo de mozos para recibir notificaciones de mesas
-      await _hubConnection!.invoke('JoinWaitersGroup');
-
-      print('✅ SignalR conectado en TablesPage');
-    } catch (e) {
-      print('⚠️ SignalR no disponible en TablesPage: $e');
-    }
-  }
-
-  Future<void> _loadOccupiedTables() async {
-    try {
-      final occupied = await ApiService.getOccupiedTableNumbers();
+      final data = await ApiService.getTablesByFloor();
       if (mounted) {
         setState(() {
-          _occupiedFromBackend = occupied.toSet();
-          _loadingTables = false;
+          _floors = List<Map<String, dynamic>>.from(data);
+          _loading = false;
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _loadingTables = false);
+      debugPrint('Error cargando mesas: $e');
+      if (mounted) setState(() => _loading = false);
     }
   }
 
+  List<Map<String, dynamic>> get _currentTables {
+    if (_floors.isEmpty) return [];
+    final tables = _floors[_selectedFloor]['tables'] as List<dynamic>;
+    return List<Map<String, dynamic>>.from(tables);
+  }
+
+  int get _occupiedCount =>
+      _currentTables.where((t) => t['isOccupied'] == true).length;
+
   @override
   Widget build(BuildContext context) {
-    final tables = _generateTables();
-
     return Scaffold(
       appBar: AppBar(
         title: Text('Mesas — ${widget.mealType}'),
@@ -113,195 +60,248 @@ class _TablesPageState extends State<TablesPage> {
           onPressed: () => context.goToMeals(),
         ),
         actions: [
-          // Indicador de conexión SignalR
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: Icon(
-              _hubConnection?.state == HubConnectionState.Connected
-                  ? Icons.wifi
-                  : Icons.wifi_off,
-              color: _hubConnection?.state == HubConnectionState.Connected
-                  ? AppColors.success
-                  : AppColors.error,
-              size: 20,
-            ),
-          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
-              setState(() => _loadingTables = true);
-              _loadOccupiedTables();
+              setState(() => _loading = true);
+              _loadTables();
             },
           ),
         ],
       ),
       body: SafeArea(
-        child: _loadingTables
+        child: _loading
             ? const Center(child: CircularProgressIndicator())
-            : Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Leyenda
-                    Row(
+            : _floors.isEmpty
+            ? const Center(child: Text('No hay mesas disponibles'))
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // ── Tabs de pisos ──────────────────
+                  if (_floors.length > 1)
+                    Container(
+                      color: Colors.white,
+                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                      child: Row(
+                        children: List.generate(_floors.length, (i) {
+                          final floor = _floors[i];
+                          final isSelected = _selectedFloor == i;
+                          final tables = floor['tables'] as List<dynamic>;
+                          final occupied = tables
+                              .where((t) => t['isOccupied'] == true)
+                              .length;
+                          return Expanded(
+                            child: GestureDetector(
+                              onTap: () => setState(() => _selectedFloor = i),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                margin: EdgeInsets.only(
+                                  right: i < _floors.length - 1 ? 8 : 0,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 10,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? AppColors.primary
+                                      : Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? AppColors.primary
+                                        : Colors.grey.shade300,
+                                  ),
+                                ),
+                                child: Column(
+                                  children: [
+                                    Text(
+                                      floor['floorName'] as String,
+                                      style: TextStyle(
+                                        color: isSelected
+                                            ? Colors.white
+                                            : AppColors.textSecondary,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '$occupied ocupadas',
+                                      style: TextStyle(
+                                        color: isSelected
+                                            ? Colors.white70
+                                            : Colors.grey,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
+                      ),
+                    ),
+
+                  // ── Leyenda ────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 6,
+                    ),
+                    child: Row(
                       children: [
-                        _buildLegendDot(AppColors.primary, 'Ocupada'),
+                        _legendDot(AppColors.primary, 'Ocupada'),
                         const SizedBox(width: 16),
-                        _buildLegendDot(AppColors.success, 'Libre'),
+                        _legendDot(Colors.green, 'Libre'),
                         const Spacer(),
                         Text(
-                          '${_occupiedFromBackend.length} ocupadas',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: AppColors.textSecondary),
+                          '$_occupiedCount de ${_currentTables.length} ocupadas',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey.shade600,
+                          ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    Expanded(
-                      child: GridView.builder(
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              crossAxisSpacing: 16,
-                              mainAxisSpacing: 16,
-                              childAspectRatio: 1.0,
-                            ),
-                        itemCount: tables.length,
-                        itemBuilder: (context, index) {
-                          return _buildTableCard(context, tables[index]);
-                        },
-                      ),
+                  ),
+
+                  // ── Grid mesas ─────────────────────
+                  Expanded(
+                    child: BlocBuilder<CartBloc, CartState>(
+                      builder: (context, cartState) {
+                        return GridView.builder(
+                          padding: const EdgeInsets.fromLTRB(12, 4, 12, 16),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 3,
+                                crossAxisSpacing: 8,
+                                mainAxisSpacing: 8,
+                                childAspectRatio: 0.9,
+                              ),
+                          itemCount: _currentTables.length,
+                          itemBuilder: (context, index) {
+                            return _buildTableCard(
+                              context,
+                              _currentTables[index],
+                            );
+                          },
+                        );
+                      },
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
       ),
     );
   }
 
-  Widget _buildLegendDot(Color color, String label) {
+  Widget _legendDot(Color color, String label) {
     return Row(
       children: [
         Container(
-          width: 12,
-          height: 12,
+          width: 10,
+          height: 10,
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 4),
         Text(
           label,
-          style: Theme.of(
-            context,
-          ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
         ),
       ],
     );
   }
 
-  Widget _buildTableCard(BuildContext context, RestaurantTable table) {
-    return BlocBuilder<CartBloc, CartState>(
-      builder: (context, state) {
-        final cartBloc = context.read<CartBloc>();
-        final isOccupiedLocal = cartBloc.isTableOccupied(
-          widget.mealType,
-          table.number,
-        );
-        final isOccupiedBackend = _occupiedFromBackend.contains(table.number);
-        final isOccupied = isOccupiedLocal || isOccupiedBackend;
+  Widget _buildTableCard(BuildContext context, Map<String, dynamic> table) {
+    final tableNumber = table['tableNumber'] as int;
+    final capacity = table['capacity'] as int;
+    final isOccupiedBackend = table['isOccupied'] as bool;
 
-        return GestureDetector(
-          onTap: () => context.goToProducts(widget.mealType, table.number),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            decoration: BoxDecoration(
+    final cartBloc = context.read<CartBloc>();
+    final isOccupiedLocal = cartBloc.isTableOccupied(
+      widget.mealType,
+      tableNumber,
+    );
+    final isOccupied = isOccupiedLocal || isOccupiedBackend;
+
+    return GestureDetector(
+      onTap: () => context.goToProducts(widget.mealType, tableNumber),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        decoration: BoxDecoration(
+          color: isOccupied
+              ? AppColors.primary.withValues(alpha: 0.1)
+              : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isOccupied ? AppColors.primary : Colors.grey.shade200,
+            width: isOccupied ? 1.5 : 1,
+          ),
+          boxShadow: [
+            BoxShadow(
               color: isOccupied
-                  ? AppColors.primary.withOpacity(0.15)
-                  : AppColors.cardBackground,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: isOccupied ? AppColors.primary : AppColors.border,
-                width: isOccupied ? 2 : 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: isOccupied
-                      ? AppColors.primary.withOpacity(0.2)
-                      : AppColors.shadow,
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+                  ? AppColors.primary.withValues(alpha: 0.12)
+                  : Colors.black.withValues(alpha: 0.04),
+              blurRadius: 5,
+              offset: const Offset(0, 2),
             ),
-            child: Column(
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Icono
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: isOccupied
+                    ? AppColors.primary
+                    : AppColors.primaryLight.withValues(alpha: 0.2),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.table_restaurant,
+                size: 20,
+                color: isOccupied ? Colors.white : AppColors.primary,
+              ),
+            ),
+            const SizedBox(height: 6),
+            // Número
+            Text(
+              '$tableNumber',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                color: isOccupied ? AppColors.primary : AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 2),
+            // Estado
+            Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    color: isOccupied
-                        ? AppColors.primary
-                        : AppColors.primaryLight.withOpacity(0.2),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.table_restaurant,
-                    size: 32,
-                    color: isOccupied ? AppColors.white : AppColors.primary,
-                  ),
+                Icon(
+                  isOccupied ? Icons.circle : Icons.check_circle,
+                  size: 8,
+                  color: isOccupied ? AppColors.primary : Colors.green,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(width: 3),
                 Text(
-                  'Mesa ${table.number}',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: isOccupied
-                        ? AppColors.primary
-                        : AppColors.textPrimary,
+                  isOccupied ? 'Ocupada' : '$capacity p.',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: isOccupied ? AppColors.primary : Colors.grey,
+                    fontWeight: isOccupied
+                        ? FontWeight.bold
+                        : FontWeight.normal,
                   ),
                 ),
-                const SizedBox(height: 4),
-                if (isOccupied)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '🔴 Ocupada',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  )
-                else
-                  Text(
-                    '✅ Libre • ${table.capacity} pers.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
               ],
             ),
-          ),
-        );
-      },
-    );
-  }
-
-  List<RestaurantTable> _generateTables() {
-    return List.generate(
-      10,
-      (i) => RestaurantTable(
-        id: 'table_${i + 1}',
-        number: i + 1,
-        capacity: (i + 1) % 2 == 0 ? 4 : 2,
+          ],
+        ),
       ),
     );
   }

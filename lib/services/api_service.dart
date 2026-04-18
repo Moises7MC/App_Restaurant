@@ -186,4 +186,19 @@ class ApiService {
       rethrow;
     }
   }
+
+  // Agregar este método a api_service.dart (antes del último })
+  static Future<List<dynamic>> getTablesByFloor() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/table/by-floor'));
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Error: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error getTablesByFloor: $e');
+      rethrow;
+    }
+  }
 }
