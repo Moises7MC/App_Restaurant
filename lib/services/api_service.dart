@@ -187,7 +187,6 @@ class ApiService {
     }
   }
 
-  // Agregar este método a api_service.dart (antes del último })
   static Future<List<dynamic>> getTablesByFloor() async {
     try {
       final response = await http.get(Uri.parse('$baseUrl/table/by-floor'));
