@@ -5,6 +5,8 @@ import '../../../../core/routes/app_router.dart';
 import '../../../../services/api_service.dart';
 import '../bloc/cart_bloc.dart';
 import '../bloc/cart_state.dart';
+import '../pages/entrada_selection_page.dart';
+import 'package:signalr_netcore/signalr_client.dart';
 
 class TablesPage extends StatefulWidget {
   final String mealType;
@@ -19,10 +21,40 @@ class _TablesPageState extends State<TablesPage> {
   bool _loading = true;
   int _selectedFloor = 0;
 
+  HubConnection? _hubConnection;
+  static const String _hubUrl =
+      'https://app-restaurant-api.onrender.com/hubs/orders';
+
   @override
   void initState() {
     super.initState();
     _loadTables();
+    _connectSignalR();
+  }
+
+  @override
+  void dispose() {
+    _hubConnection?.stop();
+    super.dispose();
+  }
+
+  Future<void> _connectSignalR() async {
+    try {
+      _hubConnection = HubConnectionBuilder()
+          .withUrl(_hubUrl)
+          .withAutomaticReconnect()
+          .build();
+      _hubConnection!.on('MesaCambio', (args) {
+        if (mounted) _loadTables();
+      });
+      _hubConnection!.on('NuevoPedido', (args) {
+        if (mounted) _loadTables();
+      });
+      await _hubConnection!.start();
+      await _hubConnection!.invoke('JoinWaitersGroup');
+    } catch (e) {
+      debugPrint('⚠️ SignalR TablesPage: $e');
+    }
   }
 
   Future<void> _loadTables() async {
@@ -35,19 +67,152 @@ class _TablesPageState extends State<TablesPage> {
         });
       }
     } catch (e) {
-      debugPrint('Error cargando mesas: $e');
       if (mounted) setState(() => _loading = false);
     }
   }
 
   List<Map<String, dynamic>> get _currentTables {
     if (_floors.isEmpty) return [];
-    final tables = _floors[_selectedFloor]['tables'] as List<dynamic>;
-    return List<Map<String, dynamic>>.from(tables);
+    return List<Map<String, dynamic>>.from(
+      _floors[_selectedFloor]['tables'] as List<dynamic>,
+    );
   }
 
   int get _occupiedCount =>
       _currentTables.where((t) => t['isOccupied'] == true).length;
+
+  // ✅ Mesa libre → modal clientes → entradas → productos
+  // ✅ Mesa ocupada → directo a productos
+  void _onTableTap(BuildContext context, Map<String, dynamic> table) {
+    final tableNumber = table['tableNumber'] as int;
+    final isOccupiedBackend = table['isOccupied'] as bool;
+    final isOccupiedLocal = context.read<CartBloc>().isTableOccupied(
+      widget.mealType,
+      tableNumber,
+    );
+    final isOccupied = isOccupiedLocal || isOccupiedBackend;
+
+    if (isOccupied) {
+      context.goToProducts(widget.mealType, tableNumber);
+    } else {
+      _showCustomerCountModal(context, tableNumber);
+    }
+  }
+
+  void _showCustomerCountModal(BuildContext context, int tableNumber) {
+    int count = 1;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dlg) => StatefulBuilder(
+        builder: (ctx, setModalState) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Column(
+            children: [
+              const Text('🪑', style: TextStyle(fontSize: 36)),
+              const SizedBox(height: 6),
+              Text(
+                'Mesa $tableNumber',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '¿Cuántos clientes?',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade600,
+                  fontWeight: FontWeight.normal,
+                ),
+              ),
+            ],
+          ),
+          content: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              GestureDetector(
+                onTap: count > 1 ? () => setModalState(() => count--) : null,
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: count > 1 ? AppColors.primary : AppColors.border,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.remove,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 24),
+              Text(
+                '$count',
+                style: const TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(width: 24),
+              GestureDetector(
+                onTap: count < 20 ? () => setModalState(() => count++) : null,
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.add, color: Colors.white, size: 22),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dlg).pop(),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(dlg).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => BlocProvider.value(
+                      value: context.read<CartBloc>(),
+                      child: EntradaSelectionPage(
+                        mealType: widget.mealType,
+                        tableNumber: tableNumber,
+                        customerCount: count,
+                      ),
+                    ),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.warning,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Text(
+                'Continuar',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -77,7 +242,6 @@ class _TablesPageState extends State<TablesPage> {
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // ── Tabs de pisos ──────────────────
                   if (_floors.length > 1)
                     Container(
                       color: Colors.white,
@@ -143,7 +307,6 @@ class _TablesPageState extends State<TablesPage> {
                       ),
                     ),
 
-                  // ── Leyenda ────────────────────────
                   Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -166,7 +329,6 @@ class _TablesPageState extends State<TablesPage> {
                     ),
                   ),
 
-                  // ── Grid mesas ─────────────────────
                   Expanded(
                     child: BlocBuilder<CartBloc, CartState>(
                       builder: (context, cartState) {
@@ -180,12 +342,8 @@ class _TablesPageState extends State<TablesPage> {
                                 childAspectRatio: 0.9,
                               ),
                           itemCount: _currentTables.length,
-                          itemBuilder: (context, index) {
-                            return _buildTableCard(
-                              context,
-                              _currentTables[index],
-                            );
-                          },
+                          itemBuilder: (context, index) =>
+                              _buildTableCard(context, _currentTables[index]),
                         );
                       },
                     ),
@@ -217,16 +375,14 @@ class _TablesPageState extends State<TablesPage> {
     final tableNumber = table['tableNumber'] as int;
     final capacity = table['capacity'] as int;
     final isOccupiedBackend = table['isOccupied'] as bool;
-
-    final cartBloc = context.read<CartBloc>();
-    final isOccupiedLocal = cartBloc.isTableOccupied(
+    final isOccupiedLocal = context.read<CartBloc>().isTableOccupied(
       widget.mealType,
       tableNumber,
     );
     final isOccupied = isOccupiedLocal || isOccupiedBackend;
 
     return GestureDetector(
-      onTap: () => context.goToProducts(widget.mealType, tableNumber),
+      onTap: () => _onTableTap(context, table),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         decoration: BoxDecoration(
@@ -251,7 +407,6 @@ class _TablesPageState extends State<TablesPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Icono
             Container(
               width: 40,
               height: 40,
@@ -268,7 +423,6 @@ class _TablesPageState extends State<TablesPage> {
               ),
             ),
             const SizedBox(height: 6),
-            // Número
             Text(
               '$tableNumber',
               style: TextStyle(
@@ -278,7 +432,6 @@ class _TablesPageState extends State<TablesPage> {
               ),
             ),
             const SizedBox(height: 2),
-            // Estado
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [

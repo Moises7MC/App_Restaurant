@@ -176,6 +176,7 @@ class CartPage extends StatelessWidget {
                     'tableNumber': tableNumber,
                     'mealType': mealType,
                     'waiterName': waiterName,
+                    'entradas': state.entradas ?? '',
                     'items': state.items
                         .map(
                           (item) => {
@@ -516,12 +517,20 @@ class CartPage extends StatelessWidget {
                           itemId,
                           newQty,
                         );
-                        context.read<CartBloc>().add(
-                          UpdateQuantity(
-                            productId: item.product.id.toString(),
-                            quantity: newQty,
-                          ),
-                        );
+                        final diff = newQty - item.quantity;
+                        if (diff > 0) {
+                          for (int i = 0; i < diff; i++) {
+                            context.read<CartBloc>().add(
+                              AddToCart(item.product),
+                            );
+                          }
+                        } else if (diff < 0) {
+                          for (int i = 0; i < diff.abs(); i++) {
+                            context.read<CartBloc>().add(
+                              RemoveFromCart(item.product.id),
+                            );
+                          }
+                        }
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text('Cantidad actualizada'),

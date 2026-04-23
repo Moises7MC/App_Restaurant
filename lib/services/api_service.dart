@@ -2,9 +2,8 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 class ApiService {
-  // static const String baseUrl = 'http://localhost:5245/api';
-  static const String baseUrl =
-      'https://app-restaurant-api.onrender.com/hubs/orders';
+  static const String baseUrl = 'http://localhost:5245/api';
+  // static const String baseUrl = 'https://app-restaurant-api.onrender.com/api';
   // ════════════════════════════════════════════════════════════
   // AUTH
   // ════════════════════════════════════════════════════════════
@@ -199,6 +198,19 @@ class ApiService {
     } catch (e) {
       print('Error getTablesByFloor: $e');
       rethrow;
+    }
+  }
+
+  // Agregar este método a api_service.dart
+  static Future<List<dynamic>> getTodayEntradas() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/entrada/today'));
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as List<dynamic>;
+      }
+      return [];
+    } catch (e) {
+      return [];
     }
   }
 }

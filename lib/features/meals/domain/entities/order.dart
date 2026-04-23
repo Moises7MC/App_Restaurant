@@ -1,55 +1,41 @@
-class Order {
-  final int? id;
-  final int tableNumber;
-  final String mealType;
-  final List<OrderItem> items;
-  final double total;
-  final String status;
-  final DateTime createdAt;
+import 'package:equatable/equatable.dart';
+import '../../domain/entities/cart_item.dart';
 
-  Order({
-    this.id,
-    required this.tableNumber,
-    required this.mealType,
-    required this.items,
-    required this.total,
-    this.status = 'Pendiente',
-    required this.createdAt,
-  });
+abstract class CartState extends Equatable {
+  const CartState();
 
-  Map<String, dynamic> toJson() {
-    return {
-      'tableNumber': tableNumber,
-      'mealType': mealType,
-      'items': items.map((i) => i.toJson()).toList(),
-      'total': total,
-      'status': status,
-    };
-  }
+  @override
+  List<Object?> get props => [];
 }
 
-class OrderItem {
-  final int? id;
-  final int productId;
-  final String productName;
-  final int quantity;
-  final double unitPrice;
+class CartEmpty extends CartState {
+  @override
+  String toString() => 'CartEmpty()';
+}
 
-  OrderItem({
-    this.id,
-    required this.productId,
-    required this.productName,
-    required this.quantity,
-    required this.unitPrice,
-  });
+class CartLoaded extends CartState {
+  final List<CartItem> items;
+  final String? entradas; // ✅ NUEVO
 
-  double get total => quantity * unitPrice;
+  const CartLoaded(this.items, {this.entradas});
 
-  Map<String, dynamic> toJson() {
-    return {
-      'productId': productId,
-      'quantity': quantity,
-      'unitPrice': unitPrice,
-    };
-  }
+  double get subtotal => items.fold(0, (sum, item) => sum + item.total);
+  double get total => subtotal;
+  int get totalItems => items.fold(0, (sum, item) => sum + item.quantity);
+
+  @override
+  List<Object?> get props => [items, entradas];
+
+  @override
+  String toString() =>
+      'CartLoaded(items: ${items.length}, total: \$${total.toStringAsFixed(2)}, entradas: $entradas)';
+}
+
+class CartError extends CartState {
+  final String message;
+  const CartError(this.message);
+  @override
+  List<Object?> get props => [message];
+  @override
+  String toString() => 'CartError(message: $message)';
 }

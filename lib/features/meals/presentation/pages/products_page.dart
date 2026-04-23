@@ -42,7 +42,8 @@ class _ProductsPageState extends State<ProductsPage> {
   bool _refreshing = false;
 
   // static const String _hubUrl = 'http://localhost:5245/hubs/orders';
-  static const String _hubUrl = 'https://app-restaurant-api.onrender.com/api';
+  static const String _hubUrl =
+      'https://app-restaurant-api.onrender.com/hubs/orders';
 
   @override
   void initState() {
@@ -163,6 +164,10 @@ class _ProductsPageState extends State<ProductsPage> {
       if (lastOrder != null && mounted) {
         final items = lastOrder['items'] as List<dynamic>;
         setState(() => _activeOrderId = lastOrder['id'] as int);
+
+        // ✅ LIMPIAR carrito antes de recargar para evitar duplicados
+        context.read<CartBloc>().add(LimpiarCarrito());
+
         for (var item in items) {
           final productId = item['productId'] as int;
           final quantity = item['quantity'] as int;
@@ -259,17 +264,22 @@ class _ProductsPageState extends State<ProductsPage> {
                     right: 24,
                     child: ElevatedButton(
                       onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => CartPage(
-                              mealType: widget.mealType,
-                              tableNumber: widget.tableNumber,
-                              itemsFromBackend: _itemsFromBackend,
-                              activeOrderId: _activeOrderId,
-                              backendItemIds: _backendItemIds,
-                            ),
-                          ),
-                        );
+                        Navigator.of(context)
+                            .push(
+                              MaterialPageRoute(
+                                builder: (context) => CartPage(
+                                  mealType: widget.mealType,
+                                  tableNumber: widget.tableNumber,
+                                  itemsFromBackend: _itemsFromBackend,
+                                  activeOrderId: _activeOrderId,
+                                  backendItemIds: _backendItemIds,
+                                ),
+                              ),
+                            )
+                            .then((_) {
+                              // ✅ Al volver del carrito, sincronizar con backend
+                              _loadExistingOrder();
+                            });
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.warning,
@@ -508,10 +518,15 @@ class _ProductsPageState extends State<ProductsPage> {
           if (item != null) quantity = item.quantity;
         }
 
+        // ✅ Si ya fue enviado a cocina, deshabilitar controles
+        final bool isFromBackend = _itemsFromBackend.containsKey(product.id);
+
         return Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: AppColors.cardBackground,
+            color: isFromBackend
+                ? AppColors.cardBackground.withValues(alpha: 0.7)
+                : AppColors.cardBackground,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
@@ -597,21 +612,39 @@ class _ProductsPageState extends State<ProductsPage> {
                       ),
                     ],
                     const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        GestureDetector(
-                          onTap: quantity > 0
-                              ? () => context.read<CartBloc>().add(
-                                  RemoveFromCart(product.id),
-                                )
-                              : null,
-                          child: Container(
+
+                    // ✅ Si ya está en cocina: mensaje + botones deshabilitados
+                    if (isFromBackend) ...[
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.check_circle_outline,
+                            size: 13,
+                            color: Color(0xFF059669),
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              'Agregado · modifica en el carrito',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: const Color(0xFF059669),
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 11,
+                                  ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          // Botón − deshabilitado
+                          Container(
                             width: 32,
                             height: 32,
                             decoration: BoxDecoration(
-                              color: quantity > 0
-                                  ? AppColors.primary
-                                  : AppColors.border,
+                              color: AppColors.border,
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: const Icon(
@@ -620,35 +653,33 @@ class _ProductsPageState extends State<ProductsPage> {
                               color: AppColors.white,
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Container(
-                          width: 40,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color: AppColors.background,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Center(
-                            child: Text(
-                              quantity.toString(),
-                              style: Theme.of(context).textTheme.titleLarge
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.textPrimary,
-                                  ),
+                          const SizedBox(width: 12),
+                          // Cantidad
+                          Container(
+                            width: 40,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: AppColors.background,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Center(
+                              child: Text(
+                                quantity.toString(),
+                                style: Theme.of(context).textTheme.titleLarge
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.textSecondary,
+                                    ),
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        GestureDetector(
-                          onTap: () =>
-                              context.read<CartBloc>().add(AddToCart(product)),
-                          child: Container(
+                          const SizedBox(width: 12),
+                          // Botón + deshabilitado
+                          Container(
                             width: 32,
                             height: 32,
                             decoration: BoxDecoration(
-                              color: AppColors.primary,
+                              color: AppColors.border,
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: const Icon(
@@ -657,9 +688,75 @@ class _ProductsPageState extends State<ProductsPage> {
                               color: AppColors.white,
                             ),
                           ),
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
+                    ] else ...[
+                      // ✅ Producto nuevo: botones activos normales
+                      Row(
+                        children: [
+                          GestureDetector(
+                            onTap: quantity > 0
+                                ? () => context.read<CartBloc>().add(
+                                    RemoveFromCart(product.id),
+                                  )
+                                : null,
+                            child: Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                color: quantity > 0
+                                    ? AppColors.primary
+                                    : AppColors.border,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(
+                                Icons.remove,
+                                size: 18,
+                                color: AppColors.white,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Container(
+                            width: 40,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: AppColors.background,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Center(
+                              child: Text(
+                                quantity.toString(),
+                                style: Theme.of(context).textTheme.titleLarge
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.textPrimary,
+                                    ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          GestureDetector(
+                            onTap: () => context.read<CartBloc>().add(
+                              AddToCart(product),
+                            ),
+                            child: Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                color: AppColors.primary,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(
+                                Icons.add,
+                                size: 18,
+                                color: AppColors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),

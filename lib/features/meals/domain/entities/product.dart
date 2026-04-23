@@ -1,34 +1,14 @@
 import 'package:equatable/equatable.dart';
 
-/// Entidad que representa un producto (plato) en el restaurante
-///
-/// Cada producto tiene:
-/// - Un ID único
-/// - Nombre del plato
-/// - Precio
-/// - Descripción
-/// - Imagen
-/// - Categoría (Almuerzo, Desayuno, Cena)
 class Product extends Equatable {
-  /// Identificador único del producto
   final int id;
-
-  /// Nombre del plato
   final String name;
-
-  /// Precio del plato
   final double price;
-
-  /// Descripción del plato
   final String description;
-
-  /// URL o ruta de la imagen del plato
   final String imageUrl;
-
-  /// Categoría: "Almuerzo", "Desayuno", "Cena"
   final String category;
+  final bool isEntrada; // ✅ NUEVO
 
-  /// Constructor
   const Product({
     required this.id,
     required this.name,
@@ -36,15 +16,22 @@ class Product extends Equatable {
     required this.description,
     required this.imageUrl,
     required this.category,
+    this.isEntrada = false, // opcional, default false
   });
 
-  /// Lista de propiedades para comparación (Equatable)
   @override
-  List<Object?> get props => [id, name, price, description, imageUrl, category];
+  List<Object?> get props => [
+    id,
+    name,
+    price,
+    description,
+    imageUrl,
+    category,
+    isEntrada,
+  ];
 
-  /// Método toString para debugging
   @override
   String toString() {
-    return 'Product(id: $id, name: $name, price: $price, category: $category)';
+    return 'Product(id: $id, name: $name, price: $price, category: $category, isEntrada: $isEntrada)';
   }
 }

@@ -4,11 +4,8 @@ import 'cart_event.dart';
 import 'cart_state.dart';
 
 class CartBloc extends Bloc<CartEvent, CartState> {
-  /// Mapa de carritos por mesa: mealType_tableNumber -> items
-  /// Ejemplo: "Almuerzo_3" -> [CartItem, CartItem, ...]
   final Map<String, List<CartItem>> _cartsByTable = {};
-
-  /// Mesa actual (para saber cuál carrito estamos usando)
+  final Map<String, String?> _entradasByTable = {}; // ✅ NUEVO
   String _currentTableKey = '';
 
   CartBloc() : super(CartEmpty()) {
@@ -18,60 +15,64 @@ class CartBloc extends Bloc<CartEvent, CartState> {
     on<ClearCart>(_onClearCart);
     on<SelectTable>(_onSelectTable);
     on<LiberarMesa>(_onLiberarMesa);
-    on<LimpiarCarrito>(_onLimpiarCarrito); // ← AGREGA ESTA LÍNEA
+    on<LimpiarCarrito>(_onLimpiarCarrito);
+    on<SetEntradas>(_onSetEntradas); // ✅ NUEVO
   }
 
-  /// Genera la clave única para una mesa
-  /// Ejemplo: "Almuerzo_3"
-  String _getTableKey(String mealType, int tableNumber) {
-    return '${mealType}_$tableNumber';
+  String _getTableKey(String mealType, int tableNumber) =>
+      '${mealType}_$tableNumber';
+
+  List<CartItem> _getCurrentItems() => _cartsByTable[_currentTableKey] ?? [];
+
+  String? _getCurrentEntradas() => _entradasByTable[_currentTableKey];
+
+  // ✅ Emitir estado con entradas incluidas
+  void _emitLoaded(Emitter<CartState> emit) {
+    final items = _getCurrentItems();
+    final entradas = _getCurrentEntradas();
+    if (items.isEmpty && entradas == null) {
+      emit(CartEmpty());
+    } else {
+      emit(CartLoaded(List.from(items), entradas: entradas));
+    }
   }
 
-  /// Obtiene los items del carrito actual
-  List<CartItem> _getCurrentItems() {
-    return _cartsByTable[_currentTableKey] ?? [];
-  }
-
-  /// Maneja el evento SelectTable
-  /// Se ejecuta cuando cambias de mesa
   Future<void> _onSelectTable(
     SelectTable event,
     Emitter<CartState> emit,
   ) async {
     try {
       _currentTableKey = _getTableKey(event.mealType, event.tableNumber);
-
-      final items = _cartsByTable[_currentTableKey] ?? [];
-
-      if (items.isEmpty) {
-        emit(CartEmpty());
-      } else {
-        emit(CartLoaded(List.from(items)));
-      }
+      _emitLoaded(emit);
     } catch (e) {
       emit(CartError('Error al seleccionar mesa: $e'));
     }
   }
 
+  // ✅ NUEVO: guardar entradas para la mesa actual
+  Future<void> _onSetEntradas(
+    SetEntradas event,
+    Emitter<CartState> emit,
+  ) async {
+    _entradasByTable[_currentTableKey] = event.entradas;
+    _emitLoaded(emit);
+  }
+
   Future<void> _onAddToCart(AddToCart event, Emitter<CartState> emit) async {
     try {
       final items = _getCurrentItems();
-      final index = items.indexWhere(
-        (item) => item.product.id == event.product.id,
-      );
-
+      final index = items.indexWhere((i) => i.product.id == event.product.id);
       if (index >= 0) {
-        final itemActual = items[index];
+        final cur = items[index];
         items[index] = CartItem(
-          product: itemActual.product,
-          quantity: itemActual.quantity + 1,
+          product: cur.product,
+          quantity: cur.quantity + 1,
         );
       } else {
         items.add(CartItem(product: event.product, quantity: 1));
       }
-
       _cartsByTable[_currentTableKey] = items;
-      emit(CartLoaded(List.from(items)));
+      _emitLoaded(emit);
     } catch (e) {
       emit(CartError('Error al agregar al carrito: $e'));
     }
@@ -83,29 +84,19 @@ class CartBloc extends Bloc<CartEvent, CartState> {
   ) async {
     try {
       final items = _getCurrentItems();
-      final index = items.indexWhere(
-        (item) => item.product.id == event.productId,
-      );
-
+      final index = items.indexWhere((i) => i.product.id == event.productId);
       if (index >= 0) {
-        final itemActual = items[index];
-
-        if (itemActual.quantity > 1) {
+        final cur = items[index];
+        if (cur.quantity > 1) {
           items[index] = CartItem(
-            product: itemActual.product,
-            quantity: itemActual.quantity - 1,
+            product: cur.product,
+            quantity: cur.quantity - 1,
           );
         } else {
           items.removeAt(index);
         }
-
         _cartsByTable[_currentTableKey] = items;
-
-        if (items.isEmpty) {
-          emit(CartEmpty());
-        } else {
-          emit(CartLoaded(List.from(items)));
-        }
+        _emitLoaded(emit);
       }
     } catch (e) {
       emit(CartError('Error al quitar del carrito: $e'));
@@ -118,29 +109,19 @@ class CartBloc extends Bloc<CartEvent, CartState> {
   ) async {
     try {
       final items = _getCurrentItems();
-      final index = items.indexWhere(
-        (item) => item.product.id == event.productId,
-      );
-
+      final index = items.indexWhere((i) => i.product.id == event.productId);
       if (index >= 0) {
         if (event.quantity > 0) {
-          final itemActual = items[index];
+          final cur = items[index];
           items[index] = CartItem(
-            product: itemActual.product,
+            product: cur.product,
             quantity: event.quantity,
           );
-          _cartsByTable[_currentTableKey] = items;
-          emit(CartLoaded(List.from(items)));
         } else {
           items.removeAt(index);
-          _cartsByTable[_currentTableKey] = items;
-
-          if (items.isEmpty) {
-            emit(CartEmpty());
-          } else {
-            emit(CartLoaded(List.from(items)));
-          }
         }
+        _cartsByTable[_currentTableKey] = items;
+        _emitLoaded(emit);
       }
     } catch (e) {
       emit(CartError('Error al actualizar cantidad: $e'));
@@ -148,9 +129,36 @@ class CartBloc extends Bloc<CartEvent, CartState> {
   }
 
   Future<void> _onClearCart(ClearCart event, Emitter<CartState> emit) async {
+    _cartsByTable.clear();
+    _entradasByTable.clear();
+    _currentTableKey = '';
+    emit(CartEmpty());
+  }
+
+  Future<void> _onLiberarMesa(
+    LiberarMesa event,
+    Emitter<CartState> emit,
+  ) async {
     try {
-      _cartsByTable.clear();
-      _currentTableKey = '';
+      final tableKey = _getTableKey(event.mealType, event.tableNumber);
+      _cartsByTable.remove(tableKey);
+      _entradasByTable.remove(tableKey); // ✅
+      if (_currentTableKey == tableKey) {
+        _currentTableKey = '';
+        emit(CartEmpty());
+      }
+    } catch (e) {
+      emit(CartError('Error al liberar mesa: $e'));
+    }
+  }
+
+  Future<void> _onLimpiarCarrito(
+    LimpiarCarrito event,
+    Emitter<CartState> emit,
+  ) async {
+    try {
+      _cartsByTable[_currentTableKey] = [];
+      _entradasByTable.remove(_currentTableKey); // ✅
       emit(CartEmpty());
     } catch (e) {
       emit(CartError('Error al limpiar carrito: $e'));
@@ -162,58 +170,19 @@ class CartBloc extends Bloc<CartEvent, CartState> {
   CartLoaded? get currentCart {
     final items = _getCurrentItems();
     if (items.isEmpty) return null;
-    return CartLoaded(List.from(items));
+    return CartLoaded(List.from(items), entradas: _getCurrentEntradas());
   }
 
-  /// Verifica si una mesa específica tiene items en el carrito
-  ///
-  /// Retorna true si la mesa está ocupada (tiene items)
-  /// Retorna false si la mesa está libre (sin items)
   bool isTableOccupied(String mealType, int tableNumber) {
     final tableKey = _getTableKey(mealType, tableNumber);
-    final items = _cartsByTable[tableKey] ?? [];
-    return items.isNotEmpty;
+    return (_cartsByTable[tableKey] ?? []).isNotEmpty;
   }
 
-  /// Obtiene la cantidad de items en una mesa específica
   int getTableItemCount(String mealType, int tableNumber) {
     final tableKey = _getTableKey(mealType, tableNumber);
-    final items = _cartsByTable[tableKey] ?? [];
-    return items.fold(0, (sum, item) => sum + item.quantity);
-  }
-
-  /// Maneja el evento LiberarMesa
-  ///
-  /// Limpia el carrito de la mesa específica
-  Future<void> _onLiberarMesa(
-    LiberarMesa event,
-    Emitter<CartState> emit,
-  ) async {
-    try {
-      final tableKey = _getTableKey(event.mealType, event.tableNumber);
-      _cartsByTable.remove(tableKey);
-
-      // Si era la mesa actual, limpiar el estado
-      if (_currentTableKey == tableKey) {
-        _currentTableKey = '';
-        emit(CartEmpty());
-      }
-    } catch (e) {
-      emit(CartError('Error al liberar mesa: $e'));
-    }
-  }
-
-  /// Maneja el evento LimpiarCarrito
-  /// Limpia solo el carrito de la mesa actual
-  Future<void> _onLimpiarCarrito(
-    LimpiarCarrito event,
-    Emitter<CartState> emit,
-  ) async {
-    try {
-      _cartsByTable[_currentTableKey] = [];
-      emit(CartEmpty());
-    } catch (e) {
-      emit(CartError('Error al limpiar carrito: $e'));
-    }
+    return (_cartsByTable[tableKey] ?? []).fold(
+      0,
+      (sum, i) => sum + i.quantity,
+    );
   }
 }
