@@ -50,7 +50,12 @@ class _ProductsPageState extends State<ProductsPage> {
   void initState() {
     super.initState();
     context.read<CartBloc>().add(
-      SelectTable(mealType: widget.mealType, tableNumber: widget.tableNumber),
+      SelectTable(
+        mealType: widget.mealType,
+        tableNumber: widget.isParaLlevar
+            ? -(widget.tableNumber) // ← key negativa para para llevar
+            : widget.tableNumber,
+      ),
     );
     _loadProducts();
     _loadExistingOrder();
@@ -209,10 +214,11 @@ class _ProductsPageState extends State<ProductsPage> {
 
   Future<void> _openParaLlevar() async {
     final newCartBloc = CartBloc();
+    // Usar tableNumber negativo como key única para para llevar
     newCartBloc.add(
       SelectTable(
-        mealType: '${widget.mealType}_llevar',
-        tableNumber: widget.tableNumber,
+        mealType: widget.mealType,
+        tableNumber: -(widget.tableNumber), // ← key negativa, nunca colisiona
       ),
     );
     await Future.delayed(const Duration(milliseconds: 50));
@@ -223,7 +229,8 @@ class _ProductsPageState extends State<ProductsPage> {
           value: newCartBloc,
           child: ProductsPage(
             mealType: widget.mealType,
-            tableNumber: widget.tableNumber,
+            tableNumber:
+                widget.tableNumber, // ← tableNumber real para el backend
             isParaLlevar: true,
           ),
         ),
