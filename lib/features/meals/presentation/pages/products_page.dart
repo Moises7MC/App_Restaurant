@@ -13,13 +13,13 @@ import '../pages/cart_page.dart';
 class ProductsPage extends StatefulWidget {
   final String mealType;
   final int tableNumber;
-  final bool isParaLlevar; // ← NUEVO
+  final bool isParaLlevar;
 
   const ProductsPage({
     super.key,
     required this.mealType,
     required this.tableNumber,
-    this.isParaLlevar = false, // ← NUEVO
+    this.isParaLlevar = false,
   });
 
   @override
@@ -132,8 +132,9 @@ class _ProductsPageState extends State<ProductsPage> {
       if (mounted) {
         setState(() {
           _categories = List<Map<String, dynamic>>.from(data);
-          if (_selectedCategoryIndex >= _categories.length)
+          if (_selectedCategoryIndex >= _categories.length) {
             _selectedCategoryIndex = 0;
+          }
           _refreshing = false;
         });
       }
@@ -161,8 +162,10 @@ class _ProductsPageState extends State<ProductsPage> {
     }
   }
 
+  // ✅ CAMBIO: Ya NO retornamos cuando es Para llevar.
+  //    Ahora también cargamos el historial de la orden Para llevar pendiente.
+  //    El filtro por isParaLlevar lo hace el ApiService.getLastPendingOrder.
   Future<void> _loadExistingOrder() async {
-    if (widget.isParaLlevar) return;
     try {
       final lastOrder = await ApiService.getLastPendingOrder(
         widget.tableNumber,
@@ -213,24 +216,13 @@ class _ProductsPageState extends State<ProductsPage> {
   }
 
   Future<void> _openParaLlevar() async {
-    final newCartBloc = CartBloc();
-    // Usar tableNumber negativo como key única para para llevar
-    newCartBloc.add(
-      SelectTable(
-        mealType: widget.mealType,
-        tableNumber: -(widget.tableNumber), // ← key negativa, nunca colisiona
-      ),
-    );
-    await Future.delayed(const Duration(milliseconds: 50));
-    if (!mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => BlocProvider.value(
-          value: newCartBloc,
+        builder: (_) => BlocProvider(
+          create: (_) => CartBloc(),
           child: ProductsPage(
             mealType: widget.mealType,
-            tableNumber:
-                widget.tableNumber, // ← tableNumber real para el backend
+            tableNumber: widget.tableNumber,
             isParaLlevar: true,
           ),
         ),
@@ -242,7 +234,6 @@ class _ProductsPageState extends State<ProductsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        // title: Text('${widget.mealType} - Mesa ${widget.tableNumber}'),
         title: Text(
           widget.isParaLlevar
               ? 'Para llevar — Mesa ${widget.tableNumber}'
@@ -313,23 +304,22 @@ class _ProductsPageState extends State<ProductsPage> {
                     left: 24,
                     right: 24,
                     child: ElevatedButton(
+                      // ✅ Pasamos siempre los datos del backend (también para Para llevar).
+                      //    Antes los excluíamos con widget.isParaLlevar ? {} : ...
                       onPressed: () {
                         Navigator.of(context)
                             .push(
                               MaterialPageRoute(
-                                builder: (context) => CartPage(
-                                  mealType: widget.mealType,
-                                  tableNumber: widget.tableNumber,
-                                  itemsFromBackend: widget.isParaLlevar
-                                      ? {}
-                                      : _itemsFromBackend,
-                                  activeOrderId: widget.isParaLlevar
-                                      ? null
-                                      : _activeOrderId,
-                                  backendItemIds: widget.isParaLlevar
-                                      ? {}
-                                      : _backendItemIds,
-                                  isParaLlevar: widget.isParaLlevar,
+                                builder: (_) => BlocProvider.value(
+                                  value: context.read<CartBloc>(),
+                                  child: CartPage(
+                                    mealType: widget.mealType,
+                                    tableNumber: widget.tableNumber,
+                                    itemsFromBackend: _itemsFromBackend,
+                                    activeOrderId: _activeOrderId,
+                                    backendItemIds: _backendItemIds,
+                                    isParaLlevar: widget.isParaLlevar,
+                                  ),
                                 ),
                               ),
                             )
@@ -367,8 +357,9 @@ class _ProductsPageState extends State<ProductsPage> {
   }
 
   Widget _buildBody() {
-    if (_loadingProducts)
+    if (_loadingProducts) {
       return const Center(child: CircularProgressIndicator());
+    }
     if (_errorMessage != null) {
       return Center(
         child: Column(
@@ -392,8 +383,9 @@ class _ProductsPageState extends State<ProductsPage> {
         ),
       );
     }
-    if (_categories.isEmpty)
+    if (_categories.isEmpty) {
       return const Center(child: Text('No hay platos disponibles'));
+    }
 
     final filteredProducts = _getFilteredProducts();
 

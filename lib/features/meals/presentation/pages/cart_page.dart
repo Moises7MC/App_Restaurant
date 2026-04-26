@@ -11,7 +11,7 @@ import '../bloc/cash_flow_event.dart';
 import '../../domain/entities/cart_item.dart';
 import '../../../../services/api_service.dart';
 
-class CartPage extends StatelessWidget {
+class CartPage extends StatefulWidget {
   final String mealType;
   final int tableNumber;
   final Map<int, int> itemsFromBackend;
@@ -29,9 +29,41 @@ class CartPage extends StatelessWidget {
     this.isParaLlevar = false,
   });
 
+  @override
+  State<CartPage> createState() => _CartPageState();
+}
+
+class _CartPageState extends State<CartPage> {
+  // ✅ Copias mutables de los datos del backend.
+  //    Se inicializan con lo que viene de ProductsPage y se actualizan
+  //    cuando el mozo edita/elimina items ya enviados a cocina.
+  late Map<int, int> _itemsFromBackend;
+  late Map<int, int> _backendItemIds;
+
+  @override
+  void initState() {
+    super.initState();
+    _itemsFromBackend = Map<int, int>.from(widget.itemsFromBackend);
+    _backendItemIds = Map<int, int>.from(widget.backendItemIds);
+  }
+
   Future<String> _getWaiterName() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('WAITER_FULL_NAME') ?? 'Mozo';
+  }
+
+  // ✅ Calcula si hay items realmente nuevos respecto a lo enviado al backend.
+  //    - Sin orden activa → cualquier item del carrito es "nuevo".
+  //    - Con orden activa → comparar contra _itemsFromBackend (que ya está sincronizado).
+  bool _hasNewItems(CartLoaded state) {
+    if (widget.activeOrderId == null) {
+      return state.items.isNotEmpty;
+    }
+    for (final item in state.items) {
+      final bQty = _itemsFromBackend[item.product.id] ?? 0;
+      if (item.quantity > bQty) return true;
+    }
+    return false;
   }
 
   @override
@@ -39,9 +71,9 @@ class CartPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          isParaLlevar
-              ? 'Para llevar — Mesa $tableNumber'
-              : 'Mi pedido - Mesa $tableNumber',
+          widget.isParaLlevar
+              ? 'Para llevar — Mesa ${widget.tableNumber}'
+              : 'Mi pedido - Mesa ${widget.tableNumber}',
         ),
         elevation: 0,
         leading: IconButton(
@@ -50,7 +82,7 @@ class CartPage extends StatelessWidget {
             if (Navigator.of(context).canPop()) {
               Navigator.of(context).pop();
             } else {
-              context.goToTables(mealType);
+              context.goToTables(widget.mealType);
             }
           },
         ),
@@ -82,7 +114,7 @@ class CartPage extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  isParaLlevar
+                                  widget.isParaLlevar
                                       ? 'Agrega productos para llevar'
                                       : 'Agrega productos al carrito',
                                   style: TextStyle(
@@ -121,6 +153,8 @@ class CartPage extends StatelessWidget {
   }
 
   Widget _buildBottomBar(BuildContext context, CartLoaded state) {
+    final hasNewItems = _hasNewItems(state);
+
     return Container(
       padding: const EdgeInsets.all(24.0),
       decoration: BoxDecoration(
@@ -160,198 +194,139 @@ class CartPage extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          // ── Enviar a cocina ──
+          // ── Enviar a cocina / Para llevar ──
           ElevatedButton(
-            onPressed: () async {
-              if (state.totalItems == 0) return;
+            onPressed: !hasNewItems
+                ? null
+                : () async {
+                    if (state.totalItems == 0) return;
 
-              final cartBloc = context.read<CartBloc>();
-              final cashFlowBloc = context.read<CashFlowBloc>();
-              final navigator = Navigator.of(context);
-              final messenger = ScaffoldMessenger.of(context);
-              final totalSnapshot = state.total;
+                    final cartBloc = context.read<CartBloc>();
+                    final cashFlowBloc = context.read<CashFlowBloc>();
+                    final navigator = Navigator.of(context);
+                    final messenger = ScaffoldMessenger.of(context);
+                    final totalSnapshot = state.total;
 
-              try {
-                final waiterName = await _getWaiterName();
+                    try {
+                      final waiterName = await _getWaiterName();
 
-                if (isParaLlevar) {
-                  // ── Para llevar: siempre crear orden nueva ──
-                  await ApiService.createOrder({
-                    'tableNumber': tableNumber,
-                    'mealType': mealType,
-                    'waiterName': waiterName,
-                    'isParaLlevar': true,
-                    'entradas': null,
-                    'items': state.items
-                        .map(
-                          (item) => {
-                            'productId': item.product.id,
-                            'quantity': item.quantity,
-                            'unitPrice': item.product.price,
-                          },
-                        )
-                        .toList(),
-                    'total': totalSnapshot,
-                    'status': 'Enviado a cocina',
-                  });
+                      final lastOrder = await ApiService.getLastPendingOrder(
+                        widget.tableNumber,
+                        isParaLlevar: widget.isParaLlevar,
+                      );
 
-                  cashFlowBloc.add(
-                    AddIncome(
-                      amount: totalSnapshot,
-                      description: 'Para llevar - Mesa $tableNumber',
-                      tableNumber: tableNumber,
-                    ),
-                  );
+                      if (lastOrder != null) {
+                        final itemsToSend = state.items
+                            .where((item) {
+                              final bQty =
+                                  _itemsFromBackend[item.product.id] ?? 0;
+                              return item.quantity > bQty;
+                            })
+                            .map(
+                              (item) => {
+                                'productId': item.product.id,
+                                'quantity':
+                                    item.quantity -
+                                    (_itemsFromBackend[item.product.id] ?? 0),
+                                'unitPrice': item.product.price,
+                              },
+                            )
+                            .toList();
 
-                  messenger.showSnackBar(
-                    const SnackBar(
-                      content: Text('✓ Pedido para llevar enviado a cocina'),
-                      backgroundColor: AppColors.success,
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
+                        if (itemsToSend.isEmpty) {
+                          messenger.showSnackBar(
+                            const SnackBar(
+                              content: Text('No hay items nuevos para enviar'),
+                              backgroundColor: AppColors.warning,
+                            ),
+                          );
+                          return;
+                        }
+                        await ApiService.addItemToExistingOrder(
+                          lastOrder['id'],
+                          itemsToSend,
+                        );
+                      } else {
+                        await ApiService.createOrder({
+                          'tableNumber': widget.tableNumber,
+                          'mealType': widget.mealType,
+                          'waiterName': waiterName,
+                          'isParaLlevar': widget.isParaLlevar,
+                          'entradas':
+                              (state.entradas != null &&
+                                  state.entradas!.trim().isNotEmpty)
+                              ? state.entradas
+                              : null,
+                          'items': state.items
+                              .map(
+                                (item) => {
+                                  'productId': item.product.id,
+                                  'quantity': item.quantity,
+                                  'unitPrice': item.product.price,
+                                },
+                              )
+                              .toList(),
+                          'total': totalSnapshot,
+                          'status': 'Enviado a cocina',
+                        });
+                      }
 
-                  cartBloc.add(LimpiarCarrito());
-                  navigator.pop();
-                } else {
-                  // ── Pedido normal de mesa ──
-                  final lastOrder = await ApiService.getLastPendingOrder(
-                    tableNumber,
-                    isParaLlevar: false,
-                  );
-
-                  if (lastOrder != null) {
-                    final itemsToSend = state.items
-                        .where((item) {
-                          final bQty = itemsFromBackend[item.product.id] ?? 0;
-                          return item.quantity > bQty;
-                        })
-                        .map(
-                          (item) => {
-                            'productId': item.product.id,
-                            'quantity':
-                                item.quantity -
-                                (itemsFromBackend[item.product.id] ?? 0),
-                            'unitPrice': item.product.price,
-                          },
-                        )
-                        .toList();
-
-                    if (itemsToSend.isEmpty) {
-                      messenger.showSnackBar(
-                        const SnackBar(
-                          content: Text('No hay items nuevos para enviar'),
-                          backgroundColor: AppColors.warning,
+                      cashFlowBloc.add(
+                        AddIncome(
+                          amount: totalSnapshot,
+                          description: widget.isParaLlevar
+                              ? 'Para llevar - Mesa ${widget.tableNumber}'
+                              : 'Venta - Mesa ${widget.tableNumber}',
+                          tableNumber: widget.tableNumber,
                         ),
                       );
-                      return;
-                    }
-                    await ApiService.addItemToExistingOrder(
-                      lastOrder['id'],
-                      itemsToSend,
-                    );
-                  } else {
-                    await ApiService.createOrder({
-                      'tableNumber': tableNumber,
-                      'mealType': mealType,
-                      'waiterName': waiterName,
-                      'isParaLlevar': false,
-                      'entradas':
-                          (state.entradas != null &&
-                              state.entradas!.trim().isNotEmpty)
-                          ? state.entradas
-                          : null,
-                      'items': state.items
-                          .map(
-                            (item) => {
-                              'productId': item.product.id,
-                              'quantity': item.quantity,
-                              'unitPrice': item.product.price,
-                            },
-                          )
-                          .toList(),
-                      'total': totalSnapshot,
-                      'status': 'Enviado a cocina',
-                    });
-                  }
 
-                  cashFlowBloc.add(
-                    AddIncome(
-                      amount: totalSnapshot,
-                      description: 'Venta - Mesa $tableNumber',
-                      tableNumber: tableNumber,
-                    ),
-                  );
-
-                  messenger.showSnackBar(
-                    const SnackBar(
-                      content: Text('✓ Pedido enviado a cocina'),
-                      backgroundColor: AppColors.success,
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-
-                  final updatedOrder = await ApiService.getLastPendingOrder(
-                    tableNumber,
-                  );
-
-                  if (updatedOrder != null) {
-                    cartBloc.add(LimpiarCarrito());
-                    navigator.pushReplacement(
-                      MaterialPageRoute(
-                        builder: (_) => BlocProvider.value(
-                          value: cartBloc,
-                          child: CartPage(
-                            mealType: mealType,
-                            tableNumber: tableNumber,
-                            itemsFromBackend: Map<int, int>.fromEntries(
-                              (updatedOrder['items'] as List).map(
-                                (i) => MapEntry(
-                                  i['productId'] as int,
-                                  i['quantity'] as int,
-                                ),
-                              ),
-                            ),
-                            activeOrderId: updatedOrder['id'] as int,
-                            backendItemIds: Map<int, int>.fromEntries(
-                              (updatedOrder['items'] as List).map(
-                                (i) => MapEntry(
-                                  i['productId'] as int,
-                                  i['id'] as int,
-                                ),
-                              ),
-                            ),
+                      messenger.showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            widget.isParaLlevar
+                                ? '✓ Pedido para llevar enviado a cocina'
+                                : '✓ Pedido enviado a cocina',
                           ),
+                          backgroundColor: AppColors.success,
+                          duration: const Duration(seconds: 2),
                         ),
-                      ),
-                    );
-                  }
-                }
-              } catch (e) {
-                messenger.showSnackBar(
-                  SnackBar(
-                    content: Text('Error: ${e.toString()}'),
-                    backgroundColor: AppColors.error,
-                  ),
-                );
-              }
-            },
+                      );
+
+                      cartBloc.add(LimpiarCarrito());
+                      navigator.pop();
+                    } catch (e) {
+                      messenger.showSnackBar(
+                        SnackBar(
+                          content: Text('Error: ${e.toString()}'),
+                          backgroundColor: AppColors.error,
+                        ),
+                      );
+                    }
+                  },
             style: ElevatedButton.styleFrom(
-              backgroundColor: isParaLlevar
-                  ? const Color(0xFF7c3aed)
-                  : AppColors.warning,
+              backgroundColor: !hasNewItems
+                  ? Colors.grey.shade400
+                  : (widget.isParaLlevar
+                        ? const Color(0xFF7c3aed)
+                        : AppColors.warning),
+              disabledBackgroundColor: Colors.grey.shade300,
               padding: const EdgeInsets.symmetric(vertical: 16),
             ),
             child: Text(
-              isParaLlevar ? '🛍 Enviar para llevar' : 'Enviar a cocina',
+              !hasNewItems
+                  ? 'Sin cambios para enviar'
+                  : (widget.isParaLlevar
+                        ? '🛍 Enviar para llevar'
+                        : 'Enviar a cocina'),
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: AppColors.white,
+                color: !hasNewItems ? Colors.grey.shade600 : AppColors.white,
                 fontWeight: FontWeight.bold,
               ),
             ),
           ),
 
-          if (!isParaLlevar) ...[
+          if (!widget.isParaLlevar) ...[
             const SizedBox(height: 12),
 
             // ── Liberar mesa ──
@@ -377,11 +352,11 @@ class CartPage extends StatelessWidget {
                           Navigator.of(dlg).pop();
                           context.read<CartBloc>().add(
                             LiberarMesa(
-                              mealType: mealType,
-                              tableNumber: tableNumber,
+                              mealType: widget.mealType,
+                              tableNumber: widget.tableNumber,
                             ),
                           );
-                          context.goToTables(mealType);
+                          context.goToTables(widget.mealType);
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text('Mesa liberada'),
@@ -417,8 +392,8 @@ class CartPage extends StatelessWidget {
   }
 
   Widget _buildCartItemCard(BuildContext context, CartItem item) {
-    final isFromBackend = itemsFromBackend.containsKey(item.product.id);
-    final backendItemId = backendItemIds[item.product.id];
+    final isFromBackend = _itemsFromBackend.containsKey(item.product.id);
+    final backendItemId = _backendItemIds[item.product.id];
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -480,9 +455,9 @@ class CartPage extends StatelessWidget {
               ),
             ],
           ),
-          if (!isParaLlevar &&
-              isFromBackend &&
-              activeOrderId != null &&
+          // Mostrar opciones de Editar/Eliminar para items ya enviados
+          if (isFromBackend &&
+              widget.activeOrderId != null &&
               backendItemId != null) ...[
             const SizedBox(height: 12),
             Divider(color: AppColors.border, thickness: 0.5),
@@ -505,7 +480,7 @@ class CartPage extends StatelessWidget {
                   () => _showEditQuantityDialog(
                     context,
                     item,
-                    activeOrderId!,
+                    widget.activeOrderId!,
                     backendItemId,
                   ),
                 ),
@@ -518,7 +493,7 @@ class CartPage extends StatelessWidget {
                   () => _confirmDeleteItem(
                     context,
                     item,
-                    activeOrderId!,
+                    widget.activeOrderId!,
                     backendItemId,
                   ),
                 ),
@@ -574,14 +549,14 @@ class CartPage extends StatelessWidget {
     showDialog(
       context: context,
       builder: (dlg) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
+        builder: (ctx, setStateDialog) => AlertDialog(
           title: Text('Editar: ${item.product.name}'),
           content: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               GestureDetector(
                 onTap: () {
-                  if (newQty > 1) setState(() => newQty--);
+                  if (newQty > 1) setStateDialog(() => newQty--);
                 },
                 child: Container(
                   width: 40,
@@ -606,7 +581,7 @@ class CartPage extends StatelessWidget {
               ),
               const SizedBox(width: 24),
               GestureDetector(
-                onTap: () => setState(() => newQty++),
+                onTap: () => setStateDialog(() => newQty++),
                 child: Container(
                   width: 40,
                   height: 40,
@@ -646,11 +621,20 @@ class CartPage extends StatelessWidget {
                         );
                         final diff = newQty - item.quantity;
                         if (diff > 0) {
-                          for (int i = 0; i < diff; i++)
+                          for (int i = 0; i < diff; i++) {
                             cartBloc.add(AddToCart(item.product));
+                          }
                         } else if (diff < 0) {
-                          for (int i = 0; i < diff.abs(); i++)
+                          for (int i = 0; i < diff.abs(); i++) {
                             cartBloc.add(RemoveFromCart(item.product.id));
+                          }
+                        }
+                        // ✅ Sincronizar el mapa local con la nueva cantidad
+                        //    para que el botón "Enviar" se mantenga deshabilitado.
+                        if (mounted) {
+                          setState(() {
+                            _itemsFromBackend[item.product.id] = newQty;
+                          });
                         }
                         messenger.showSnackBar(
                           const SnackBar(
@@ -701,6 +685,13 @@ class CartPage extends StatelessWidget {
                 await ApiService.removeItemFromOrder(orderId, itemId);
                 for (int i = 0; i < item.quantity; i++) {
                   cartBloc.add(RemoveFromCart(item.product.id));
+                }
+                // ✅ Quitar el item de los mapas locales
+                if (mounted) {
+                  setState(() {
+                    _itemsFromBackend.remove(item.product.id);
+                    _backendItemIds.remove(item.product.id);
+                  });
                 }
                 messenger.showSnackBar(
                   const SnackBar(
