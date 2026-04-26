@@ -13,11 +13,13 @@ import '../pages/cart_page.dart';
 class ProductsPage extends StatefulWidget {
   final String mealType;
   final int tableNumber;
+  final bool isParaLlevar; // ← NUEVO
 
   const ProductsPage({
     super.key,
     required this.mealType,
     required this.tableNumber,
+    this.isParaLlevar = false, // ← NUEVO
   });
 
   @override
@@ -41,9 +43,8 @@ class _ProductsPageState extends State<ProductsPage> {
   bool _signalRConnected = false;
   bool _refreshing = false;
 
-  // static const String _hubUrl = 'http://localhost:5245/hubs/orders';
-  static const String _hubUrl =
-      'https://app-restaurant-api.onrender.com/hubs/orders';
+  static const String _hubUrl = 'http://localhost:5245/hubs/orders';
+  // static const String _hubUrl = 'https://app-restaurant-api.onrender.com/hubs/orders';
 
   @override
   void initState() {
@@ -126,9 +127,8 @@ class _ProductsPageState extends State<ProductsPage> {
       if (mounted) {
         setState(() {
           _categories = List<Map<String, dynamic>>.from(data);
-          if (_selectedCategoryIndex >= _categories.length) {
+          if (_selectedCategoryIndex >= _categories.length)
             _selectedCategoryIndex = 0;
-          }
           _refreshing = false;
         });
       }
@@ -157,17 +157,16 @@ class _ProductsPageState extends State<ProductsPage> {
   }
 
   Future<void> _loadExistingOrder() async {
+    if (widget.isParaLlevar) return;
     try {
       final lastOrder = await ApiService.getLastPendingOrder(
         widget.tableNumber,
+        isParaLlevar: widget.isParaLlevar,
       );
       if (lastOrder != null && mounted) {
         final items = lastOrder['items'] as List<dynamic>;
         setState(() => _activeOrderId = lastOrder['id'] as int);
-
-        // ✅ LIMPIAR carrito antes de recargar para evitar duplicados
         context.read<CartBloc>().add(LimpiarCarrito());
-
         for (var item in items) {
           final productId = item['productId'] as int;
           final quantity = item['quantity'] as int;
@@ -208,19 +207,55 @@ class _ProductsPageState extends State<ProductsPage> {
         .toList();
   }
 
+  Future<void> _openParaLlevar() async {
+    final newCartBloc = CartBloc();
+    newCartBloc.add(
+      SelectTable(
+        mealType: '${widget.mealType}_llevar',
+        tableNumber: widget.tableNumber,
+      ),
+    );
+    await Future.delayed(const Duration(milliseconds: 50));
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => BlocProvider.value(
+          value: newCartBloc,
+          child: ProductsPage(
+            mealType: widget.mealType,
+            tableNumber: widget.tableNumber,
+            isParaLlevar: true,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('${widget.mealType} - Mesa ${widget.tableNumber}'),
+        // title: Text('${widget.mealType} - Mesa ${widget.tableNumber}'),
+        title: Text(
+          widget.isParaLlevar
+              ? 'Para llevar — Mesa ${widget.tableNumber}'
+              : '${widget.mealType} - Mesa ${widget.tableNumber}',
+        ),
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.goToTables(widget.mealType),
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            } else {
+              context.goToTables(widget.mealType);
+            }
+          },
         ),
         actions: [
+          // Indicador SignalR + Refresh
           Padding(
-            padding: const EdgeInsets.only(right: 8),
+            padding: const EdgeInsets.only(right: 4),
             child: Row(
               children: [
                 Container(
@@ -249,6 +284,14 @@ class _ProductsPageState extends State<ProductsPage> {
               ],
             ),
           ),
+          // Botón Para llevar
+          if (!widget.isParaLlevar)
+            IconButton(
+              icon: const Icon(Icons.shopping_bag_outlined),
+              tooltip: 'Para llevar',
+              onPressed: _openParaLlevar,
+            ),
+          const SizedBox(width: 4),
         ],
       ),
       body: SafeArea(
@@ -270,16 +313,20 @@ class _ProductsPageState extends State<ProductsPage> {
                                 builder: (context) => CartPage(
                                   mealType: widget.mealType,
                                   tableNumber: widget.tableNumber,
-                                  itemsFromBackend: _itemsFromBackend,
-                                  activeOrderId: _activeOrderId,
-                                  backendItemIds: _backendItemIds,
+                                  itemsFromBackend: widget.isParaLlevar
+                                      ? {}
+                                      : _itemsFromBackend,
+                                  activeOrderId: widget.isParaLlevar
+                                      ? null
+                                      : _activeOrderId,
+                                  backendItemIds: widget.isParaLlevar
+                                      ? {}
+                                      : _backendItemIds,
+                                  isParaLlevar: widget.isParaLlevar,
                                 ),
                               ),
                             )
-                            .then((_) {
-                              // ✅ Al volver del carrito, sincronizar con backend
-                              _loadExistingOrder();
-                            });
+                            .then((_) => _loadExistingOrder());
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.warning,
@@ -313,9 +360,8 @@ class _ProductsPageState extends State<ProductsPage> {
   }
 
   Widget _buildBody() {
-    if (_loadingProducts) {
+    if (_loadingProducts)
       return const Center(child: CircularProgressIndicator());
-    }
     if (_errorMessage != null) {
       return Center(
         child: Column(
@@ -339,16 +385,14 @@ class _ProductsPageState extends State<ProductsPage> {
         ),
       );
     }
-    if (_categories.isEmpty) {
+    if (_categories.isEmpty)
       return const Center(child: Text('No hay platos disponibles'));
-    }
 
     final filteredProducts = _getFilteredProducts();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Subtitulo
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
           child: Text(
@@ -359,7 +403,7 @@ class _ProductsPageState extends State<ProductsPage> {
           ),
         ),
 
-        // Tabs categorias scroll horizontal
+        // Tabs categorías
         SizedBox(
           height: 42,
           child: ListView.builder(
@@ -518,7 +562,6 @@ class _ProductsPageState extends State<ProductsPage> {
           if (item != null) quantity = item.quantity;
         }
 
-        // ✅ Si ya fue enviado a cocina, deshabilitar controles
         final bool isFromBackend = _itemsFromBackend.containsKey(product.id);
 
         return Container(
@@ -613,7 +656,6 @@ class _ProductsPageState extends State<ProductsPage> {
                     ],
                     const SizedBox(height: 10),
 
-                    // ✅ Si ya está en cocina: mensaje + botones deshabilitados
                     if (isFromBackend) ...[
                       Row(
                         children: [
@@ -639,7 +681,6 @@ class _ProductsPageState extends State<ProductsPage> {
                       const SizedBox(height: 8),
                       Row(
                         children: [
-                          // Botón − deshabilitado
                           Container(
                             width: 32,
                             height: 32,
@@ -654,7 +695,6 @@ class _ProductsPageState extends State<ProductsPage> {
                             ),
                           ),
                           const SizedBox(width: 12),
-                          // Cantidad
                           Container(
                             width: 40,
                             height: 32,
@@ -674,7 +714,6 @@ class _ProductsPageState extends State<ProductsPage> {
                             ),
                           ),
                           const SizedBox(width: 12),
-                          // Botón + deshabilitado
                           Container(
                             width: 32,
                             height: 32,
@@ -691,7 +730,6 @@ class _ProductsPageState extends State<ProductsPage> {
                         ],
                       ),
                     ] else ...[
-                      // ✅ Producto nuevo: botones activos normales
                       Row(
                         children: [
                           GestureDetector(

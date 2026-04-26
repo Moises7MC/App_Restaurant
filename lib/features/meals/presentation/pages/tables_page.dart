@@ -22,8 +22,10 @@ class _TablesPageState extends State<TablesPage> {
   int _selectedFloor = 0;
 
   HubConnection? _hubConnection;
-  static const String _hubUrl =
-      'https://app-restaurant-api.onrender.com/hubs/orders';
+  // static const String _hubUrl =
+  //     'https://app-restaurant-api.onrender.com/hubs/orders';
+
+  static const String _hubUrl = 'http://localhost:5245/hubs/orders';
 
   @override
   void initState() {

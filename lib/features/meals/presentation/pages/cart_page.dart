@@ -17,6 +17,7 @@ class CartPage extends StatelessWidget {
   final Map<int, int> itemsFromBackend;
   final int? activeOrderId;
   final Map<int, int> backendItemIds;
+  final bool isParaLlevar;
 
   const CartPage({
     super.key,
@@ -25,6 +26,7 @@ class CartPage extends StatelessWidget {
     this.itemsFromBackend = const {},
     this.activeOrderId,
     this.backendItemIds = const {},
+    this.isParaLlevar = false,
   });
 
   Future<String> _getWaiterName() async {
@@ -36,11 +38,21 @@ class CartPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Mi pedido - Mesa $tableNumber'),
+        title: Text(
+          isParaLlevar
+              ? 'Para llevar — Mesa $tableNumber'
+              : 'Mi pedido - Mesa $tableNumber',
+        ),
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            } else {
+              context.goToTables(mealType);
+            }
+          },
         ),
       ),
       body: SafeArea(
@@ -52,9 +64,33 @@ class CartPage extends StatelessWidget {
                   Expanded(
                     child: state.items.isEmpty
                         ? Center(
-                            child: Text(
-                              'Tu carrito está vacío',
-                              style: Theme.of(context).textTheme.bodyMedium,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.shopping_bag_outlined,
+                                  size: 64,
+                                  color: Colors.grey.shade300,
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Carrito vacío',
+                                  style: TextStyle(
+                                    color: Colors.grey.shade400,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  isParaLlevar
+                                      ? 'Agrega productos para llevar'
+                                      : 'Agrega productos al carrito',
+                                  style: TextStyle(
+                                    color: Colors.grey.shade400,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
                             ),
                           )
                         : SingleChildScrollView(
@@ -128,55 +164,24 @@ class CartPage extends StatelessWidget {
           ElevatedButton(
             onPressed: () async {
               if (state.totalItems == 0) return;
+
+              final cartBloc = context.read<CartBloc>();
+              final cashFlowBloc = context.read<CashFlowBloc>();
+              final navigator = Navigator.of(context);
+              final messenger = ScaffoldMessenger.of(context);
+              final totalSnapshot = state.total;
+
               try {
                 final waiterName = await _getWaiterName();
-                final lastOrder = await ApiService.getLastPendingOrder(
-                  tableNumber,
-                );
 
-                if (lastOrder != null) {
-                  final itemsToSend = state.items
-                      .where((item) {
-                        final bQty = itemsFromBackend[item.product.id] ?? 0;
-                        return item.quantity > bQty;
-                      })
-                      .map(
-                        (item) => {
-                          'productId': item.product.id,
-                          'quantity':
-                              item.quantity -
-                              (itemsFromBackend[item.product.id] ?? 0),
-                          'unitPrice': item.product.price,
-                        },
-                      )
-                      .toList();
-
-                  if (itemsToSend.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('No hay items nuevos para enviar'),
-                        backgroundColor: AppColors.warning,
-                      ),
-                    );
-                    return;
-                  }
-                  await ApiService.addItemToExistingOrder(
-                    lastOrder['id'],
-                    itemsToSend,
-                  );
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Items agregados a la orden'),
-                      backgroundColor: AppColors.success,
-                    ),
-                  );
-                } else {
-                  // Nueva orden — incluye waiterName
+                if (isParaLlevar) {
+                  // ── Para llevar: siempre crear orden nueva ──
                   await ApiService.createOrder({
                     'tableNumber': tableNumber,
                     'mealType': mealType,
                     'waiterName': waiterName,
-                    'entradas': state.entradas ?? '',
+                    'isParaLlevar': true,
+                    'entradas': null,
                     'items': state.items
                         .map(
                           (item) => {
@@ -186,28 +191,144 @@ class CartPage extends StatelessWidget {
                           },
                         )
                         .toList(),
-                    'total': state.total,
+                    'total': totalSnapshot,
                     'status': 'Enviado a cocina',
                   });
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Pedido enviado a cocina'),
-                      backgroundColor: AppColors.success,
+
+                  cashFlowBloc.add(
+                    AddIncome(
+                      amount: totalSnapshot,
+                      description: 'Para llevar - Mesa $tableNumber',
+                      tableNumber: tableNumber,
                     ),
                   );
-                }
 
-                context.read<CashFlowBloc>().add(
-                  AddIncome(
-                    amount: state.total,
-                    description: 'Venta - Mesa $tableNumber',
-                    tableNumber: tableNumber,
-                  ),
-                );
-                context.read<CartBloc>().add(LimpiarCarrito());
-                context.goToTables(mealType);
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('✓ Pedido para llevar enviado a cocina'),
+                      backgroundColor: AppColors.success,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+
+                  cartBloc.add(LimpiarCarrito());
+                  navigator.pop();
+                } else {
+                  // ── Pedido normal de mesa ──
+                  final lastOrder = await ApiService.getLastPendingOrder(
+                    tableNumber,
+                    isParaLlevar: false,
+                  );
+
+                  if (lastOrder != null) {
+                    final itemsToSend = state.items
+                        .where((item) {
+                          final bQty = itemsFromBackend[item.product.id] ?? 0;
+                          return item.quantity > bQty;
+                        })
+                        .map(
+                          (item) => {
+                            'productId': item.product.id,
+                            'quantity':
+                                item.quantity -
+                                (itemsFromBackend[item.product.id] ?? 0),
+                            'unitPrice': item.product.price,
+                          },
+                        )
+                        .toList();
+
+                    if (itemsToSend.isEmpty) {
+                      messenger.showSnackBar(
+                        const SnackBar(
+                          content: Text('No hay items nuevos para enviar'),
+                          backgroundColor: AppColors.warning,
+                        ),
+                      );
+                      return;
+                    }
+                    await ApiService.addItemToExistingOrder(
+                      lastOrder['id'],
+                      itemsToSend,
+                    );
+                  } else {
+                    await ApiService.createOrder({
+                      'tableNumber': tableNumber,
+                      'mealType': mealType,
+                      'waiterName': waiterName,
+                      'isParaLlevar': false,
+                      'entradas':
+                          (state.entradas != null &&
+                              state.entradas!.trim().isNotEmpty)
+                          ? state.entradas
+                          : null,
+                      'items': state.items
+                          .map(
+                            (item) => {
+                              'productId': item.product.id,
+                              'quantity': item.quantity,
+                              'unitPrice': item.product.price,
+                            },
+                          )
+                          .toList(),
+                      'total': totalSnapshot,
+                      'status': 'Enviado a cocina',
+                    });
+                  }
+
+                  cashFlowBloc.add(
+                    AddIncome(
+                      amount: totalSnapshot,
+                      description: 'Venta - Mesa $tableNumber',
+                      tableNumber: tableNumber,
+                    ),
+                  );
+
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('✓ Pedido enviado a cocina'),
+                      backgroundColor: AppColors.success,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+
+                  final updatedOrder = await ApiService.getLastPendingOrder(
+                    tableNumber,
+                  );
+
+                  if (updatedOrder != null) {
+                    cartBloc.add(LimpiarCarrito());
+                    navigator.pushReplacement(
+                      MaterialPageRoute(
+                        builder: (_) => BlocProvider.value(
+                          value: cartBloc,
+                          child: CartPage(
+                            mealType: mealType,
+                            tableNumber: tableNumber,
+                            itemsFromBackend: Map<int, int>.fromEntries(
+                              (updatedOrder['items'] as List).map(
+                                (i) => MapEntry(
+                                  i['productId'] as int,
+                                  i['quantity'] as int,
+                                ),
+                              ),
+                            ),
+                            activeOrderId: updatedOrder['id'] as int,
+                            backendItemIds: Map<int, int>.fromEntries(
+                              (updatedOrder['items'] as List).map(
+                                (i) => MapEntry(
+                                  i['productId'] as int,
+                                  i['id'] as int,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                }
               } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                messenger.showSnackBar(
                   SnackBar(
                     content: Text('Error: ${e.toString()}'),
                     backgroundColor: AppColors.error,
@@ -216,11 +337,13 @@ class CartPage extends StatelessWidget {
               }
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.warning,
+              backgroundColor: isParaLlevar
+                  ? const Color(0xFF7c3aed)
+                  : AppColors.warning,
               padding: const EdgeInsets.symmetric(vertical: 16),
             ),
             child: Text(
-              'Enviar a cocina',
+              isParaLlevar ? '🛍 Enviar para llevar' : 'Enviar a cocina',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 color: AppColors.white,
                 fontWeight: FontWeight.bold,
@@ -228,64 +351,66 @@ class CartPage extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(height: 12),
+          if (!isParaLlevar) ...[
+            const SizedBox(height: 12),
 
-          // ── Liberar mesa ──
-          ElevatedButton(
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (dlg) => AlertDialog(
-                  title: const Text('Liberar Mesa'),
-                  content: const Text(
-                    '¿Confirmas que los clientes terminaron?',
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(dlg).pop(),
-                      child: const Text('Cancelar'),
+            // ── Liberar mesa ──
+            ElevatedButton(
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (dlg) => AlertDialog(
+                    title: const Text('Liberar Mesa'),
+                    content: const Text(
+                      '¿Confirmas que los clientes terminaron?',
                     ),
-                    ElevatedButton(
-                      onPressed: () {
-                        Navigator.of(dlg).pop();
-                        context.read<CartBloc>().add(
-                          LiberarMesa(
-                            mealType: mealType,
-                            tableNumber: tableNumber,
-                          ),
-                        );
-                        Navigator.of(context).pop();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Mesa liberada'),
-                            backgroundColor: AppColors.success,
-                          ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.error,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(dlg).pop(),
+                        child: const Text('Cancelar'),
                       ),
-                      child: const Text('Liberar Mesa'),
-                    ),
-                  ],
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.of(dlg).pop();
+                          context.read<CartBloc>().add(
+                            LiberarMesa(
+                              mealType: mealType,
+                              tableNumber: tableNumber,
+                            ),
+                          );
+                          context.goToTables(mealType);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Mesa liberada'),
+                              backgroundColor: AppColors.success,
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.error,
+                        ),
+                        child: const Text('Liberar Mesa'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.error,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              child: Text(
+                'Liberar Mesa',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: AppColors.white,
+                  fontWeight: FontWeight.bold,
                 ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.error,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-            ),
-            child: Text(
-              'Liberar Mesa',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: AppColors.white,
-                fontWeight: FontWeight.bold,
               ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -355,8 +480,8 @@ class CartPage extends StatelessWidget {
               ),
             ],
           ),
-
-          if (isFromBackend &&
+          if (!isParaLlevar &&
+              isFromBackend &&
               activeOrderId != null &&
               backendItemId != null) ...[
             const SizedBox(height: 12),
@@ -511,6 +636,8 @@ class CartPage extends StatelessWidget {
                   ? null
                   : () async {
                       Navigator.of(dlg).pop();
+                      final cartBloc = context.read<CartBloc>();
+                      final messenger = ScaffoldMessenger.of(context);
                       try {
                         await ApiService.updateItemQuantity(
                           orderId,
@@ -519,26 +646,20 @@ class CartPage extends StatelessWidget {
                         );
                         final diff = newQty - item.quantity;
                         if (diff > 0) {
-                          for (int i = 0; i < diff; i++) {
-                            context.read<CartBloc>().add(
-                              AddToCart(item.product),
-                            );
-                          }
+                          for (int i = 0; i < diff; i++)
+                            cartBloc.add(AddToCart(item.product));
                         } else if (diff < 0) {
-                          for (int i = 0; i < diff.abs(); i++) {
-                            context.read<CartBloc>().add(
-                              RemoveFromCart(item.product.id),
-                            );
-                          }
+                          for (int i = 0; i < diff.abs(); i++)
+                            cartBloc.add(RemoveFromCart(item.product.id));
                         }
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        messenger.showSnackBar(
                           const SnackBar(
                             content: Text('Cantidad actualizada'),
                             backgroundColor: AppColors.success,
                           ),
                         );
                       } catch (e) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        messenger.showSnackBar(
                           SnackBar(
                             content: Text('Error: $e'),
                             backgroundColor: AppColors.error,
@@ -574,19 +695,21 @@ class CartPage extends StatelessWidget {
           ElevatedButton(
             onPressed: () async {
               Navigator.of(dlg).pop();
+              final cartBloc = context.read<CartBloc>();
+              final messenger = ScaffoldMessenger.of(context);
               try {
                 await ApiService.removeItemFromOrder(orderId, itemId);
                 for (int i = 0; i < item.quantity; i++) {
-                  context.read<CartBloc>().add(RemoveFromCart(item.product.id));
+                  cartBloc.add(RemoveFromCart(item.product.id));
                 }
-                ScaffoldMessenger.of(context).showSnackBar(
+                messenger.showSnackBar(
                   const SnackBar(
                     content: Text('Plato eliminado'),
                     backgroundColor: AppColors.success,
                   ),
                 );
               } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                messenger.showSnackBar(
                   SnackBar(
                     content: Text('Error: $e'),
                     backgroundColor: AppColors.error,

@@ -30,11 +30,9 @@ class CartBloc extends Bloc<CartEvent, CartState> {
   void _emitLoaded(Emitter<CartState> emit) {
     final items = _getCurrentItems();
     final entradas = _getCurrentEntradas();
-    if (items.isEmpty && entradas == null) {
-      emit(CartEmpty());
-    } else {
-      emit(CartLoaded(List.from(items), entradas: entradas));
-    }
+    print('📦 _emitLoaded - key: "$_currentTableKey" - entradas: "$entradas"');
+    // ← Siempre CartLoaded, nunca CartEmpty desde aquí
+    emit(CartLoaded(List.from(items), entradas: entradas));
   }
 
   Future<void> _onSelectTable(
@@ -54,6 +52,9 @@ class CartBloc extends Bloc<CartEvent, CartState> {
     SetEntradas event,
     Emitter<CartState> emit,
   ) async {
+    print(
+      '💾 SetEntradas - key: "$_currentTableKey" - valor: "${event.entradas}"',
+    );
     _entradasByTable[_currentTableKey] = event.entradas;
     _emitLoaded(emit);
   }
@@ -158,8 +159,9 @@ class CartBloc extends Bloc<CartEvent, CartState> {
   ) async {
     try {
       _cartsByTable[_currentTableKey] = [];
-      _entradasByTable.remove(_currentTableKey); // ✅
-      emit(CartEmpty());
+      // _entradasByTable.remove(_currentTableKey); // ✅
+      // emit(CartEmpty());
+      emit(CartLoaded([], entradas: null));
     } catch (e) {
       emit(CartError('Error al limpiar carrito: $e'));
     }

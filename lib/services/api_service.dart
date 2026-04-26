@@ -86,7 +86,10 @@ class ApiService {
     throw Exception('Error al cargar órdenes');
   }
 
-  static Future<dynamic> getLastPendingOrder(int tableNumber) async {
+  static Future<dynamic> getLastPendingOrder(
+    int tableNumber, {
+    bool isParaLlevar = false,
+  }) async {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/order/table/$tableNumber'),
@@ -99,7 +102,9 @@ class ApiService {
           return createdAt.day == today.day &&
               createdAt.month == today.month &&
               createdAt.year == today.year &&
-              (o['status'] == 'Enviado a cocina' || o['status'] == 'Pendiente');
+              (o['status'] == 'Enviado a cocina' ||
+                  o['status'] == 'Pendiente') &&
+              (o['isParaLlevar'] ?? false) == isParaLlevar; // ← NUEVO filtro
         }).toList();
         return todayOrders.isNotEmpty ? todayOrders.last : null;
       }

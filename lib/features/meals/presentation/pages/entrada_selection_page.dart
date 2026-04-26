@@ -1,7 +1,7 @@
+import 'package:app_restaurant/features/meals/presentation/pages/products_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/constants/app_colors.dart';
-import '../../../../core/routes/app_router.dart';
 import '../../../../services/api_service.dart';
 import '../bloc/cart_bloc.dart';
 import '../bloc/cart_event.dart';
@@ -27,13 +27,12 @@ class _EntradaSelectionPageState extends State<EntradaSelectionPage> {
   bool _loading = true;
   String? _error;
 
-  // Selección por cliente: índice → nombre entrada (null = sin entrada)
-  late List<String?> _selections;
+  // cantidad por entrada: nombre → cantidad
+  final Map<String, int> _quantities = {};
 
   @override
   void initState() {
     super.initState();
-    _selections = List.filled(widget.customerCount, null);
     _loadEntradas();
   }
 
@@ -43,6 +42,9 @@ class _EntradaSelectionPageState extends State<EntradaSelectionPage> {
       if (mounted) {
         setState(() {
           _entradas = List<Map<String, dynamic>>.from(data);
+          for (final e in _entradas) {
+            _quantities[e['name'] as String] = 0;
+          }
           _loading = false;
         });
       }
@@ -56,21 +58,39 @@ class _EntradaSelectionPageState extends State<EntradaSelectionPage> {
     }
   }
 
-  // ✅ Construir texto resumen: "2x Tamal, 1x Sopa, 1x Sin entrada"
+  int get _totalSelected => _quantities.values.fold(0, (sum, q) => sum + q);
+
   String _buildEntradasText() {
-    final counter = <String, int>{};
-    for (final sel in _selections) {
-      final key = sel ?? 'Sin entrada';
-      counter[key] = (counter[key] ?? 0) + 1;
-    }
-    return counter.entries.map((e) => '${e.value}x ${e.key}').join(', ');
+    final parts = _quantities.entries
+        .where((e) => e.value > 0)
+        .map((e) => '${e.value}x ${e.key}')
+        .toList();
+    return parts.join(', ');
   }
 
   void _confirm() {
     final entradasText = _buildEntradasText();
-    // Guardar en el BLoC para que cart_page lo incluya al crear la orden
-    context.read<CartBloc>().add(SetEntradas(entradasText));
-    context.goToProducts(widget.mealType, widget.tableNumber);
+    final cartBloc = context.read<CartBloc>();
+
+    cartBloc.add(
+      SelectTable(mealType: widget.mealType, tableNumber: widget.tableNumber),
+    );
+
+    if (entradasText.isNotEmpty) {
+      cartBloc.add(SetEntradas(entradasText));
+    }
+
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => BlocProvider.value(
+          value: cartBloc,
+          child: ProductsPage(
+            mealType: widget.mealType,
+            tableNumber: widget.tableNumber,
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -133,14 +153,14 @@ class _EntradaSelectionPageState extends State<EntradaSelectionPage> {
           ),
           child: Row(
             children: [
-              const Text('🍽️', style: TextStyle(fontSize: 22)),
+              const Text('🥣', style: TextStyle(fontSize: 22)),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Selecciona las entradas',
+                      'Entradas del día',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
@@ -149,7 +169,7 @@ class _EntradaSelectionPageState extends State<EntradaSelectionPage> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${widget.customerCount} cliente${widget.customerCount > 1 ? 's' : ''} · una entrada por persona',
+                      '${widget.customerCount} cliente${widget.customerCount > 1 ? 's' : ''} · selecciona las cantidades',
                       style: TextStyle(
                         fontSize: 12,
                         color: AppColors.textSecondary,
@@ -158,6 +178,25 @@ class _EntradaSelectionPageState extends State<EntradaSelectionPage> {
                   ],
                 ),
               ),
+              if (_totalSelected > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '$_totalSelected selec.',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
@@ -169,8 +208,8 @@ class _EntradaSelectionPageState extends State<EntradaSelectionPage> {
               ? _buildNoEntradas()
               : ListView.builder(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-                  itemCount: widget.customerCount,
-                  itemBuilder: (context, i) => _buildClientCard(i),
+                  itemCount: _entradas.length,
+                  itemBuilder: (context, i) => _buildEntradaCard(_entradas[i]),
                 ),
         ),
 
@@ -187,7 +226,9 @@ class _EntradaSelectionPageState extends State<EntradaSelectionPage> {
               ),
             ),
             child: Text(
-              'Continuar a platos',
+              _totalSelected > 0
+                  ? 'Continuar con $_totalSelected entrada${_totalSelected > 1 ? 's' : ''}'
+                  : 'Continuar sin entradas',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
@@ -196,6 +237,115 @@ class _EntradaSelectionPageState extends State<EntradaSelectionPage> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildEntradaCard(Map<String, dynamic> entrada) {
+    final name = entrada['name'] as String;
+    final qty = _quantities[name] ?? 0;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: qty > 0
+              ? AppColors.primary.withValues(alpha: 0.4)
+              : Colors.grey.shade200,
+          width: qty > 0 ? 1.5 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Icono
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: qty > 0
+                  ? AppColors.primary.withValues(alpha: 0.1)
+                  : Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Center(
+              child: Text('🥣', style: TextStyle(fontSize: 22)),
+            ),
+          ),
+          const SizedBox(width: 14),
+
+          // Nombre
+          Expanded(
+            child: Text(
+              name,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: qty > 0 ? FontWeight.w600 : FontWeight.normal,
+                color: qty > 0 ? AppColors.primary : AppColors.textPrimary,
+              ),
+            ),
+          ),
+
+          // Controles cantidad
+          Row(
+            children: [
+              GestureDetector(
+                onTap: qty > 0
+                    ? () => setState(() => _quantities[name] = qty - 1)
+                    : null,
+                child: Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: qty > 0 ? AppColors.primary : AppColors.border,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.remove,
+                    size: 18,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              Container(
+                width: 40,
+                height: 34,
+                alignment: Alignment.center,
+                child: Text(
+                  '$qty',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: qty > 0
+                        ? AppColors.primary
+                        : AppColors.textSecondary,
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: () => setState(() => _quantities[name] = qty + 1),
+                child: Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.add, size: 18, color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -225,130 +375,6 @@ class _EntradaSelectionPageState extends State<EntradaSelectionPage> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildClientCard(int clientIndex) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
-            child: Row(
-              children: [
-                Container(
-                  width: 28,
-                  height: 28,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Text(
-                      '${clientIndex + 1}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Cliente ${clientIndex + 1}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-
-          // Opción sin entrada
-          // Opción sin entrada
-          _buildOption(
-            clientIndex: clientIndex,
-            value: null,
-            name: 'Sin entrada',
-            icon: '🚫',
-          ),
-
-          // Opciones del día
-          ..._entradas.map(
-            (e) => _buildOption(
-              clientIndex: clientIndex,
-              value: e['name'] as String,
-              name: e['name'] as String,
-              icon: '🥣',
-            ),
-          ),
-
-          const SizedBox(height: 4),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildOption({
-    required int clientIndex,
-    required String? value,
-    required String name,
-    required String icon,
-  }) {
-    final isSelected = _selections[clientIndex] == value;
-    return GestureDetector(
-      onTap: () => setState(() => _selections[clientIndex] = value),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        margin: const EdgeInsets.fromLTRB(10, 4, 10, 0),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? AppColors.primary.withValues(alpha: 0.08)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isSelected
-                ? AppColors.primary.withValues(alpha: 0.4)
-                : Colors.transparent,
-          ),
-        ),
-        child: Row(
-          children: [
-            Text(icon, style: const TextStyle(fontSize: 18)),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                name,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                  color: isSelected ? AppColors.primary : AppColors.textPrimary,
-                ),
-              ),
-            ),
-            if (isSelected)
-              Icon(Icons.check_circle, color: AppColors.primary, size: 20),
-          ],
-        ),
       ),
     );
   }
