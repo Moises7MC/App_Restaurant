@@ -34,6 +34,8 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
       firstName: waiterData['firstName'],
       lastName: waiterData['lastName'],
       gender: waiterData['gender'],
+      // ✅ NUEVO — leer el rol que devuelve el backend
+      role: (waiterData['role'] as String?) ?? 'mozo',
     );
 
     await cacheUser(user);

@@ -5,88 +5,56 @@ import '../../features/auth/presentation/pages/home_page.dart';
 import '../../features/meals/presentation/pages/meals_page.dart';
 import '../../features/meals/presentation/pages/tables_page.dart';
 import '../../features/meals/presentation/pages/products_page.dart';
+import '../../features/cantador/presentation/pages/cantador_home_page.dart';
 
 /// Configuración de rutas de la aplicación
-///
-/// Usa GoRouter para navegación declarativa.
-///
-/// ¿Por qué GoRouter?
-/// - Navegación declarativa (más fácil de mantener)
-/// - Deep linking automático
-/// - Soporte para web
-/// - Manejo de errores integrado
 class AppRouter {
   // ═══════════════════════════════════════
   // NOMBRES DE RUTAS
   // ═══════════════════════════════════════
 
-  /// Ruta de login
   static const String login = '/login';
-
-  /// Ruta de selección de comidas (Desayuno, Almuerzo, Cena)
   static const String meals = '/meals';
-
-  /// Ruta de selección de mesas
   static const String tables = '/tables';
-
-  /// Ruta de catálogo de productos
   static const String products = '/products';
-
-  /// Ruta de home
   static const String home = '/home';
+
+  /// ✅ NUEVO: pantalla principal del cantador (3 tabs)
+  static const String cantador = '/cantador';
 
   // ═══════════════════════════════════════
   // CONFIGURACIÓN DEL ROUTER
   // ═══════════════════════════════════════
 
-  /// Configuración del router
-  ///
-  /// Define todas las rutas de la aplicación.
   static final GoRouter router = GoRouter(
-    // Ruta inicial (primera pantalla que se muestra)
     initialLocation: login,
 
-    // Lista de rutas
     routes: [
-      // ════════════════════════════════════
-      // RUTA: LOGIN
-      // ════════════════════════════════════
       GoRoute(
         path: login,
         name: 'login',
         builder: (context, state) => const LoginPage(),
       ),
 
-      // ════════════════════════════════════
-      // RUTA: MEALS (SELECCIONAR COMIDA)
-      // ════════════════════════════════════
       GoRoute(
         path: meals,
         name: 'meals',
         builder: (context, state) => const MealsPage(),
       ),
 
-      // ════════════════════════════════════
-      // RUTA: TABLES (SELECCIONAR MESA)
-      // ════════════════════════════════════
       GoRoute(
         path: '/tables/:mealType',
         name: 'tables',
         builder: (context, state) {
-          // Obtener el parámetro mealType de la URL
           final mealType = state.pathParameters['mealType'] ?? 'Almuerzo';
           return TablesPage(mealType: mealType);
         },
       ),
 
-      // ════════════════════════════════════
-      // RUTA: PRODUCTS (CATÁLOGO DE PRODUCTOS)
-      // ════════════════════════════════════
       GoRoute(
         path: '/products/:mealType/:tableNumber',
         name: 'products',
         builder: (context, state) {
-          // Obtener parámetros de la URL
           final mealType = state.pathParameters['mealType'] ?? 'Almuerzo';
           final tableNumberStr = state.pathParameters['tableNumber'] ?? '1';
           final tableNumber = int.tryParse(tableNumberStr) ?? 1;
@@ -95,26 +63,22 @@ class AppRouter {
         },
       ),
 
-      // ════════════════════════════════════
-      // RUTA: HOME
-      // ════════════════════════════════════
       GoRoute(
         path: home,
         name: 'home',
         builder: (context, state) => const HomePage(),
       ),
 
-      // Aquí agregarás más rutas en el futuro:
-      // - /cart
-      // - /checkout
-      // - /orders
+      // ════════════════════════════════════
+      // ✅ RUTA: CANTADOR (3 tabs)
+      // ════════════════════════════════════
+      GoRoute(
+        path: cantador,
+        name: 'cantador',
+        builder: (context, state) => const CantadorHomePage(),
+      ),
     ],
 
-    // ════════════════════════════════════
-    // MANEJO DE ERRORES
-    // ════════════════════════════════════
-
-    /// Página de error (cuando la ruta no existe)
     errorBuilder: (context, state) => Scaffold(
       appBar: AppBar(title: const Text('Error')),
       body: Center(
@@ -152,45 +116,16 @@ class AppRouter {
 // EXTENSIONES PARA NAVEGACIÓN FÁCIL
 // ═══════════════════════════════════════
 
-/// Extensión para facilitar la navegación
-///
-/// Permite usar:
-/// ```dart
-/// context.goToMeals();
-/// context.goToTables('Almuerzo');
-/// context.goToProducts('Almuerzo', 5);
-/// context.goToHome();
-/// context.goToLogin();
-/// ```
-///
-/// En lugar de:
-/// ```dart
-/// context.go('/meals');
-/// context.go('/tables/Almuerzo');
-/// context.go('/products/Almuerzo/5');
-/// ```
 extension NavigationExtension on BuildContext {
-  /// Navega a la pantalla de login
   void goToLogin() => go(AppRouter.login);
-
-  /// Navega a la pantalla de selección de comidas
   void goToMeals() => go(AppRouter.meals);
-
-  /// Navega a la pantalla de selección de mesas
-  ///
-  /// [mealType] Tipo de comida seleccionada (Desayuno, Almuerzo, Cena)
   void goToTables(String mealType) => go('/tables/$mealType');
-
-  /// Navega a la pantalla de catálogo de productos
-  ///
-  /// [mealType] Tipo de comida seleccionada (Desayuno, Almuerzo, Cena)
-  /// [tableNumber] Número de mesa seleccionada
   void goToProducts(String mealType, int tableNumber) =>
       go('/products/$mealType/$tableNumber');
-
-  /// Navega a la pantalla de home
   void goToHome() => go(AppRouter.home);
 
-  /// Regresa a la pantalla anterior
+  /// ✅ NUEVO
+  void goToCantador() => go(AppRouter.cantador);
+
   void goBack() => pop();
 }

@@ -49,8 +49,14 @@ class MyApp extends StatelessWidget {
               print('📍 AuthState changed: $state');
 
               if (state is AuthAuthenticated) {
-                print('✅ Usuario autenticado, navegando a /meals');
-                AppRouter.router.go('/meals');
+                // ✅ NUEVO: decidir destino según el rol
+                if (state.user.isCantador) {
+                  print('✅ Cantador autenticado, navegando a /cantador');
+                  AppRouter.router.go('/cantador');
+                } else {
+                  print('✅ Mozo autenticado, navegando a /meals');
+                  AppRouter.router.go('/meals');
+                }
               } else if (state is AuthUnauthenticated) {
                 print('❌ Usuario desautenticado, navegando a /login');
                 AppRouter.router.go('/login');

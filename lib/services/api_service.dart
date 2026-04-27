@@ -4,6 +4,7 @@ import 'dart:convert';
 class ApiService {
   static const String baseUrl = 'http://localhost:5245/api';
   // static const String baseUrl = 'https://app-restaurant-api.onrender.com/api';
+
   // ════════════════════════════════════════════════════════════
   // AUTH
   // ════════════════════════════════════════════════════════════
@@ -104,7 +105,7 @@ class ApiService {
               createdAt.year == today.year &&
               (o['status'] == 'Enviado a cocina' ||
                   o['status'] == 'Pendiente') &&
-              (o['isParaLlevar'] ?? false) == isParaLlevar; // ← NUEVO filtro
+              (o['isParaLlevar'] ?? false) == isParaLlevar;
         }).toList();
         return todayOrders.isNotEmpty ? todayOrders.last : null;
       }
@@ -175,7 +176,6 @@ class ApiService {
     throw Exception('Error al eliminar item: ${response.body}');
   }
 
-  // Agregar este método a api_service.dart
   static Future<List<dynamic>> getProductsByCategory() async {
     try {
       final response = await http.get(
@@ -206,7 +206,6 @@ class ApiService {
     }
   }
 
-  // Agregar este método a api_service.dart
   static Future<List<dynamic>> getTodayEntradas() async {
     try {
       final response = await http.get(Uri.parse('$baseUrl/entrada/today'));
@@ -217,5 +216,96 @@ class ApiService {
     } catch (e) {
       return [];
     }
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // ✅ NUEVO — CANTADOR
+  // ════════════════════════════════════════════════════════════
+
+  /// Tab "POR CANTIDADES" — entradas + segundos agregados de hoy.
+  /// Devuelve: { entradas: [...], segundos: [...] }
+  static Future<Map<String, dynamic>> getCantadorAggregated() async {
+    final response = await http
+        .get(Uri.parse('$baseUrl/cantador/aggregated'))
+        .timeout(const Duration(seconds: 15));
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    throw Exception('Error al cargar vista agregada: ${response.statusCode}');
+  }
+
+  /// Tab "POR MESA" — órdenes activas del día (Pendiente/Enviado a cocina).
+  static Future<List<dynamic>> getCantadorOrders() async {
+    final response = await http
+        .get(Uri.parse('$baseUrl/cantador/orders'))
+        .timeout(const Duration(seconds: 15));
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as List<dynamic>;
+    }
+    throw Exception('Error al cargar órdenes activas: ${response.statusCode}');
+  }
+
+  /// Tab "HISTORIAL" — órdenes ya servidas/cobradas/canceladas del día.
+  static Future<List<dynamic>> getCantadorHistory() async {
+    final response = await http
+        .get(Uri.parse('$baseUrl/cantador/history'))
+        .timeout(const Duration(seconds: 15));
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as List<dynamic>;
+    }
+    throw Exception('Error al cargar historial: ${response.statusCode}');
+  }
+
+  /// Descuenta 1 plato del producto indicado (FIFO: primera mesa pendiente).
+  /// Se usa cuando el cantador toca [-] en el tab "POR CANTIDADES".
+  /// Devuelve info de la orden afectada (orderId, tableNumber, remaining, completed).
+  static Future<Map<String, dynamic>> serveItem(int productId) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/cantador/serve-item'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'productId': productId}),
+        )
+        .timeout(const Duration(seconds: 15));
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    throw Exception('Error al descontar plato: ${response.body}');
+  }
+
+  /// Descuenta 1 unidad de un OrderItem específico.
+  /// Se usa cuando el cantador toca [-] en el tab "POR MESA" sobre un plato concreto.
+  static Future<Map<String, dynamic>> serveItemById(int orderItemId) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/cantador/serve-item-by-id/$orderItemId'),
+          headers: {'Content-Type': 'application/json'},
+        )
+        .timeout(const Duration(seconds: 15));
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    throw Exception('Error al descontar item: ${response.body}');
+  }
+
+  /// Marca una orden como ya cantada al chef.
+  /// Se usa cuando el cantador toca "Cantado al chef" en el tab "POR MESA".
+  static Future<Map<String, dynamic>> markOrderAsSung(int orderId) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/cantador/$orderId/cantado'),
+          headers: {'Content-Type': 'application/json'},
+        )
+        .timeout(const Duration(seconds: 15));
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    throw Exception('Error al marcar como cantado: ${response.body}');
   }
 }
