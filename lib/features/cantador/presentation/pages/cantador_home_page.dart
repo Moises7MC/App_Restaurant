@@ -6,15 +6,16 @@ import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/bloc/auth_event.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
 import '../../data/services/cantador_signalr_service.dart';
+import '../../data/services/piso_resolver.dart';
 import '../bloc/cantador_bloc.dart';
 import '../bloc/cantador_event.dart';
 import '../bloc/cantador_state.dart';
-import '../widgets/cantador_colors.dart';
-import 'by_quantity_tab.dart';
-import 'by_table_tab.dart';
-import 'history_tab.dart';
+import 'piso_tabs_page.dart';
 
-/// Pantalla principal del cantador con 3 tabs y SignalR en tiempo real.
+/// Pantalla principal del cantador (versión "Por pisos").
+///
+/// AppBar violeta + 1 sola pantalla con tabs Piso 1/Piso 2 y sub-tabs
+/// Entradas/Segundos. Sin más TabBar arriba.
 class CantadorHomePage extends StatelessWidget {
   const CantadorHomePage({super.key});
 
@@ -39,14 +40,22 @@ class _CantadorHomeViewState extends State<_CantadorHomeView>
   CantadorSignalRService? _signalR;
   bool _signalRConnected = false;
 
+  final PisoResolver _pisoResolver = PisoResolver();
+  bool _pisosLoaded = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // Conectar después del primer frame para tener acceso al CantadorBloc
+    _loadPisos();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initSignalR();
     });
+  }
+
+  Future<void> _loadPisos() async {
+    await _pisoResolver.load();
+    if (mounted) setState(() => _pisosLoaded = true);
   }
 
   @override
@@ -56,7 +65,6 @@ class _CantadorHomeViewState extends State<_CantadorHomeView>
     super.dispose();
   }
 
-  /// Reconectar SignalR cuando la app vuelve del background
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
@@ -64,12 +72,10 @@ class _CantadorHomeViewState extends State<_CantadorHomeView>
         _signalR!.connect().then((_) {
           if (mounted) {
             setState(() => _signalRConnected = _signalR!.isConnected);
-            // Refrescar datos al volver del background
             context.read<CantadorBloc>().add(const RefreshCantadorData());
           }
         });
       } else {
-        // Aunque esté conectado, refrescar por si nos perdimos algo
         if (mounted) {
           context.read<CantadorBloc>().add(const RefreshCantadorData());
         }
@@ -87,9 +93,7 @@ class _CantadorHomeViewState extends State<_CantadorHomeView>
         }
       },
       onNewOrder: (data) {
-        if (mounted) {
-          _onNewOrderArrived(data);
-        }
+        if (mounted) _onNewOrderArrived(data);
       },
     );
 
@@ -99,12 +103,9 @@ class _CantadorHomeViewState extends State<_CantadorHomeView>
     }
   }
 
-  /// Cuando llega un pedido nuevo: vibrar + sonido + snackbar
   void _onNewOrderArrived(Map<String, dynamic>? data) {
-    // Vibración corta
     HapticFeedback.heavyImpact();
 
-    // Snackbar destacado
     final tableNumber = data?['tableNumber'];
     final isParaLlevar = (data?['isParaLlevar'] as bool?) ?? false;
     final messenger = ScaffoldMessenger.of(context);
@@ -129,7 +130,7 @@ class _CantadorHomeViewState extends State<_CantadorHomeView>
             ),
           ],
         ),
-        backgroundColor: CantadorColors.entradaCircle,
+        backgroundColor: const Color(0xFFBA7517),
         duration: const Duration(seconds: 4),
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(12),
@@ -140,107 +141,80 @@ class _CantadorHomeViewState extends State<_CantadorHomeView>
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 3,
-      initialIndex: 0,
-      child: Scaffold(
-        backgroundColor: AppColors.background,
-        appBar: AppBar(
-          backgroundColor: CantadorColors.primary,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          toolbarHeight: 52,
-          title: BlocBuilder<AuthBloc, AuthState>(
-            builder: (context, state) {
-              final name = (state is AuthAuthenticated)
-                  ? (state.user.firstName ?? state.user.name)
-                  : 'Cantador';
-              return Row(
-                children: [
-                  const Icon(Icons.mic, size: 22),
-                  const SizedBox(width: 8),
-                  Text(
-                    name,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF7c3aed), // violeta
+        foregroundColor: Colors.white,
+        elevation: 0,
+        toolbarHeight: 52,
+        title: BlocBuilder<AuthBloc, AuthState>(
+          builder: (context, state) {
+            final name = (state is AuthAuthenticated)
+                ? (state.user.firstName ?? state.user.name)
+                : 'Cantador';
+            return Row(
+              children: [
+                const Icon(Icons.mic, size: 22),
+                const SizedBox(width: 8),
+                Text(
+                  name,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
                   ),
-                  const SizedBox(width: 10),
-                  // ✅ NUEVO: Indicador de conexión SignalR
-                  _buildConnectionDot(),
-                  const SizedBox(width: 6),
-                  // Indicador de "refrescando"
-                  BlocBuilder<CantadorBloc, CantadorState>(
-                    builder: (context, state) {
-                      if (state is CantadorLoaded && state.isRefreshing) {
-                        return const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white70,
-                            ),
+                ),
+                const SizedBox(width: 10),
+                _buildConnectionDot(),
+                const SizedBox(width: 6),
+                BlocBuilder<CantadorBloc, CantadorState>(
+                  builder: (context, state) {
+                    if (state is CantadorLoaded && state.isRefreshing) {
+                      return const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white70,
                           ),
-                        );
-                      }
-                      return const SizedBox.shrink();
-                    },
-                  ),
-                ],
-              );
+                        ),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
+              ],
+            );
+          },
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refrescar',
+            onPressed: () {
+              context.read<CantadorBloc>().add(const RefreshCantadorData());
             },
           ),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              tooltip: 'Refrescar',
-              onPressed: () {
-                context.read<CantadorBloc>().add(const RefreshCantadorData());
-              },
-            ),
-            IconButton(
-              icon: const Icon(Icons.logout),
-              tooltip: 'Cerrar sesión',
-              onPressed: () => _confirmLogout(context),
-            ),
-          ],
-          bottom: const TabBar(
-            indicatorColor: Colors.white,
-            indicatorWeight: 3,
-            labelColor: Colors.white,
-            unselectedLabelColor: Colors.white70,
-            labelStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-            tabs: [
-              Tab(
-                icon: Icon(Icons.format_list_numbered, size: 20),
-                text: 'POR CANTIDADES',
-              ),
-              Tab(
-                icon: Icon(Icons.table_restaurant, size: 20),
-                text: 'POR MESA',
-              ),
-              Tab(icon: Icon(Icons.history, size: 20), text: 'HISTORIAL'),
-            ],
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Cerrar sesión',
+            onPressed: () => _confirmLogout(context),
           ),
-        ),
-        body: const TabBarView(
-          children: [ByQuantityTab(), ByTableTab(), HistoryTab()],
-        ),
+        ],
       ),
+      body: !_pisosLoaded
+          ? const Center(child: CircularProgressIndicator())
+          : PisoTabsPage(pisoResolver: _pisoResolver),
     );
   }
 
-  /// Punto verde (conectado) o gris (desconectado)
   Widget _buildConnectionDot() {
     return Container(
       width: 10,
       height: 10,
       decoration: BoxDecoration(
-        color: _signalRConnected
-            ? const Color(0xFF4ade80) // verde brillante
-            : Colors.white24,
+        color: _signalRConnected ? const Color(0xFF4ade80) : Colors.white24,
         shape: BoxShape.circle,
         boxShadow: _signalRConnected
             ? [
