@@ -1,3 +1,4 @@
+import 'package:app_restaurant/core/config/api_config.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/constants/app_colors.dart';
@@ -25,7 +26,8 @@ class _TablesPageState extends State<TablesPage> {
   // static const String _hubUrl =
   //     'https://app-restaurant-api.onrender.com/hubs/orders';
 
-  static const String _hubUrl = 'http://localhost:5245/hubs/orders';
+  // static const String _hubUrl = 'http://localhost:5245/hubs/orders';
+  static String get _hubUrl => ApiConfig.hubUrl;
 
   @override
   void initState() {

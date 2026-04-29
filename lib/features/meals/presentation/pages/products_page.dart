@@ -1,3 +1,4 @@
+import 'package:app_restaurant/core/config/api_config.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:signalr_netcore/signalr_client.dart';
@@ -43,8 +44,9 @@ class _ProductsPageState extends State<ProductsPage> {
   bool _signalRConnected = false;
   bool _refreshing = false;
 
-  static const String _hubUrl = 'http://localhost:5245/hubs/orders';
+  // static const String _hubUrl = 'http://localhost:5245/hubs/orders';
   // static const String _hubUrl = 'https://app-restaurant-api.onrender.com/hubs/orders';
+  static String get _hubUrl => ApiConfig.hubUrl;
 
   @override
   void initState() {

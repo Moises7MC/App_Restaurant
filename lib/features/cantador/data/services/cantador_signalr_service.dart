@@ -1,3 +1,4 @@
+import 'package:app_restaurant/core/config/api_config.dart';
 import 'package:flutter/foundation.dart';
 import 'package:signalr_netcore/signalr_client.dart';
 
@@ -25,8 +26,9 @@ import 'package:signalr_netcore/signalr_client.dart';
 /// ```
 class CantadorSignalRService {
   /// URL del hub. Se ajusta al cambiar entre local y producción.
-  static const String hubUrl = 'http://localhost:5245/hubs/orders';
+  // static const String hubUrl = 'http://localhost:5245/hubs/orders';
   // static const String hubUrl = 'https://app-restaurant-api.onrender.com/hubs/orders';
+  static String get hubUrl => ApiConfig.hubUrl;
 
   /// Callback que se dispara cuando llega cualquier evento del backend.
   /// La pantalla lo usa para refrescar los datos.
