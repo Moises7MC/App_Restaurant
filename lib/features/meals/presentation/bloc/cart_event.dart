@@ -69,12 +69,17 @@ class LimpiarCarrito extends CartEvent {
   const LimpiarCarrito();
 }
 
-// ✅ NUEVO: guardar texto de entradas seleccionadas
+// ✅ NUEVO: guardar texto de entradas seleccionadas y permitir concatenar
 class SetEntradas extends CartEvent {
   final String entradas;
-  const SetEntradas(this.entradas);
+  final bool
+  append; // <-- Nueva variable para decidir si unimos o sobrescribimos
+
+  const SetEntradas(this.entradas, {this.append = false});
+
   @override
-  List<Object?> get props => [entradas];
+  List<Object?> get props => [entradas, append];
+
   @override
-  String toString() => 'SetEntradas($entradas)';
+  String toString() => 'SetEntradas($entradas, append: $append)';
 }

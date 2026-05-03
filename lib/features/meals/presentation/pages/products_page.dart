@@ -10,6 +10,7 @@ import '../bloc/cart_event.dart';
 import '../bloc/cart_state.dart';
 import '../../../../services/api_service.dart';
 import '../pages/cart_page.dart';
+import '../pages/entrada_selection_page.dart';
 
 class ProductsPage extends StatefulWidget {
   final String mealType;
@@ -30,6 +31,7 @@ class ProductsPage extends StatefulWidget {
 class _ProductsPageState extends State<ProductsPage> {
   final Map<int, int> _itemsFromBackend = {};
   final Map<int, int> _backendItemIds = {};
+  String? _entradasFromBackend;
   int? _activeOrderId;
 
   List<Map<String, dynamic>> _categories = [];
@@ -44,8 +46,6 @@ class _ProductsPageState extends State<ProductsPage> {
   bool _signalRConnected = false;
   bool _refreshing = false;
 
-  // static const String _hubUrl = 'http://localhost:5245/hubs/orders';
-  // static const String _hubUrl = 'https://app-restaurant-api.onrender.com/hubs/orders';
   static String get _hubUrl => ApiConfig.hubUrl;
 
   @override
@@ -164,9 +164,6 @@ class _ProductsPageState extends State<ProductsPage> {
     }
   }
 
-  // ✅ CAMBIO: Ya NO retornamos cuando es Para llevar.
-  //    Ahora también cargamos el historial de la orden Para llevar pendiente.
-  //    El filtro por isParaLlevar lo hace el ApiService.getLastPendingOrder.
   Future<void> _loadExistingOrder() async {
     try {
       final lastOrder = await ApiService.getLastPendingOrder(
@@ -176,7 +173,19 @@ class _ProductsPageState extends State<ProductsPage> {
       if (lastOrder != null && mounted) {
         final items = lastOrder['items'] as List<dynamic>;
         setState(() => _activeOrderId = lastOrder['id'] as int);
-        context.read<CartBloc>().add(LimpiarCarrito());
+
+        final cartBloc = context.read<CartBloc>();
+        cartBloc.add(const LimpiarCarrito());
+
+        // 🛑 NUEVO: Rescatamos las entradas que ya estaban en la orden 🛑
+        // Asegúrate de que la llave 'entradas' coincida con cómo lo devuelve tu API
+        final String? entradasViejas = lastOrder['entradas']?.toString();
+        _entradasFromBackend = entradasViejas;
+        if (entradasViejas != null && entradasViejas.isNotEmpty) {
+          // Las guardamos en el BLoC (sin append, porque estamos inicializando)
+          cartBloc.add(SetEntradas(entradasViejas));
+        }
+
         for (var item in items) {
           final productId = item['productId'] as int;
           final quantity = item['quantity'] as int;
@@ -192,7 +201,7 @@ class _ProductsPageState extends State<ProductsPage> {
             category: widget.mealType,
           );
           for (int i = 0; i < quantity; i++) {
-            context.read<CartBloc>().add(AddToCart(product));
+            cartBloc.add(AddToCart(product));
           }
         }
       }
@@ -226,6 +235,23 @@ class _ProductsPageState extends State<ProductsPage> {
             mealType: widget.mealType,
             tableNumber: widget.tableNumber,
             isParaLlevar: true,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// ✅ NUEVO: Abre la pantalla de entradas para agregar más a una mesa ocupada
+  Future<void> _openEntradasForOccupiedTable() async {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => BlocProvider.value(
+          value: context.read<CartBloc>(),
+          child: EntradaSelectionPage(
+            mealType: widget.mealType,
+            tableNumber: widget.tableNumber,
+            customerCount: 1, // Valor por defecto para comensales adicionales
+            isTableOccupied: true, // ✅ Indicar que la mesa está ocupada
           ),
         ),
       ),
@@ -284,6 +310,15 @@ class _ProductsPageState extends State<ProductsPage> {
               ],
             ),
           ),
+
+          // ✅ NUEVO: Botón para agregar entradas en mesa ocupada
+          if (!widget.isParaLlevar && _activeOrderId != null)
+            IconButton(
+              icon: const Icon(Icons.restaurant_menu),
+              tooltip: 'Agregar entradas',
+              onPressed: _openEntradasForOccupiedTable,
+            ),
+
           // Botón Para llevar
           if (!widget.isParaLlevar)
             IconButton(
@@ -306,8 +341,6 @@ class _ProductsPageState extends State<ProductsPage> {
                     left: 24,
                     right: 24,
                     child: ElevatedButton(
-                      // ✅ Pasamos siempre los datos del backend (también para Para llevar).
-                      //    Antes los excluíamos con widget.isParaLlevar ? {} : ...
                       onPressed: () {
                         Navigator.of(context)
                             .push(
@@ -321,6 +354,8 @@ class _ProductsPageState extends State<ProductsPage> {
                                     activeOrderId: _activeOrderId,
                                     backendItemIds: _backendItemIds,
                                     isParaLlevar: widget.isParaLlevar,
+                                    entradasFromBackend:
+                                        _entradasFromBackend, // 👈 3. A
                                   ),
                                 ),
                               ),

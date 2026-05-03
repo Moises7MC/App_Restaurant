@@ -2,9 +2,10 @@ import 'package:equatable/equatable.dart';
 
 /// Entrada (cortesía) agregada en la vista "POR CANTIDADES".
 ///
-/// A diferencia de AggregatedDish, las entradas NO son productos sino
-/// strings del campo Order.Entradas. No tienen ServedQuantity en BD;
-/// el cantador solo las "tacha visualmente" cuando las da.
+/// Las entradas NO son productos:
+/// - No tienen productId
+/// - No se sirven en BD
+/// - Solo se descuentan visualmente
 class AggregatedEntrada extends Equatable {
   final String name;
   final int pendingQuantity;
@@ -20,9 +21,30 @@ class AggregatedEntrada extends Equatable {
     return AggregatedEntrada(
       name: json['name'] as String,
       pendingQuantity: json['pendingQuantity'] as int,
-      pendingTables: List<String>.from(json['pendingTables'] ?? []),
+      pendingTables: List<String>.from(json['pendingTables'] ?? const []),
     );
   }
+
+  /// 🔽 Descuenta UNA entrada:
+  /// - resta 1 a la cantidad
+  /// - elimina UNA mesa
+  AggregatedEntrada serveOne() {
+    if (pendingQuantity <= 0) return this;
+
+    final newTables = List<String>.from(pendingTables);
+    if (newTables.isNotEmpty) {
+      newTables.removeAt(0);
+    }
+
+    return AggregatedEntrada(
+      name: name,
+      pendingQuantity: pendingQuantity - 1,
+      pendingTables: newTables,
+    );
+  }
+
+  /// Util para el BLoC
+  bool get isCompleted => pendingQuantity <= 0;
 
   @override
   List<Object?> get props => [name, pendingQuantity, pendingTables];

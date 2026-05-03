@@ -11,11 +11,15 @@ class EntradaSelectionPage extends StatefulWidget {
   final int tableNumber;
   final int customerCount;
 
+  /// ✅ NUEVO: indica si la mesa ya está ocupada (tiene orden activa)
+  final bool isTableOccupied;
+
   const EntradaSelectionPage({
     super.key,
     required this.mealType,
     required this.tableNumber,
     required this.customerCount,
+    this.isTableOccupied = false, // ✅ default false para mesas nuevas
   });
 
   @override
@@ -65,32 +69,46 @@ class _EntradaSelectionPageState extends State<EntradaSelectionPage> {
         .where((e) => e.value > 0)
         .map((e) => '${e.value}x ${e.key}')
         .toList();
-    return parts.join(', ');
+    return parts.join('\n');
   }
 
   void _confirm() {
     final entradasText = _buildEntradasText();
     final cartBloc = context.read<CartBloc>();
 
-    cartBloc.add(
-      SelectTable(mealType: widget.mealType, tableNumber: widget.tableNumber),
-    );
-
-    if (entradasText.isNotEmpty) {
-      cartBloc.add(SetEntradas(entradasText));
+    // ✅ Solo hacer SelectTable si es mesa NUEVA (no ocupada)
+    // Si la mesa ya está ocupada, el SelectTable ya se hizo en products_page
+    if (!widget.isTableOccupied) {
+      cartBloc.add(
+        SelectTable(mealType: widget.mealType, tableNumber: widget.tableNumber),
+      );
     }
 
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => BlocProvider.value(
-          value: cartBloc,
-          child: ProductsPage(
-            mealType: widget.mealType,
-            tableNumber: widget.tableNumber,
+    // ✅ Guardar las entradas si hay alguna seleccionada
+    if (entradasText.isNotEmpty) {
+      // Si la mesa está ocupada, le decimos que haga "append: true" para no borrar lo anterior
+      cartBloc.add(SetEntradas(entradasText, append: widget.isTableOccupied));
+    }
+
+    // ✅ CAMBIO CRÍTICO: decidir entre push o pop según si la mesa está ocupada
+    if (widget.isTableOccupied) {
+      // Mesa ocupada: simplemente volver atrás (pop)
+      // Esto preserva el estado del carrito en ProductsPage
+      Navigator.of(context).pop();
+    } else {
+      // Mesa nueva: navegar por primera vez a ProductsPage (pushReplacement)
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => BlocProvider.value(
+            value: cartBloc,
+            child: ProductsPage(
+              mealType: widget.mealType,
+              tableNumber: widget.tableNumber,
+            ),
           ),
         ),
-      ),
-    );
+      );
+    }
   }
 
   @override
@@ -160,7 +178,9 @@ class _EntradaSelectionPageState extends State<EntradaSelectionPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Entradas del día',
+                      widget.isTableOccupied
+                          ? 'Agregar entradas'
+                          : 'Entradas del día',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
@@ -169,7 +189,9 @@ class _EntradaSelectionPageState extends State<EntradaSelectionPage> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${widget.customerCount} cliente${widget.customerCount > 1 ? 's' : ''} · selecciona las cantidades',
+                      widget.isTableOccupied
+                          ? 'Para nuevos comensales • selecciona cantidades'
+                          : '${widget.customerCount} cliente${widget.customerCount > 1 ? 's' : ''} · selecciona las cantidades',
                       style: TextStyle(
                         fontSize: 12,
                         color: AppColors.textSecondary,
@@ -228,7 +250,9 @@ class _EntradaSelectionPageState extends State<EntradaSelectionPage> {
             child: Text(
               _totalSelected > 0
                   ? 'Continuar con $_totalSelected entrada${_totalSelected > 1 ? 's' : ''}'
-                  : 'Continuar sin entradas',
+                  : (widget.isTableOccupied
+                        ? 'Volver sin agregar'
+                        : 'Continuar sin entradas'),
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
@@ -369,9 +393,11 @@ class _EntradaSelectionPageState extends State<EntradaSelectionPage> {
           ElevatedButton(
             onPressed: _confirm,
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.warning),
-            child: const Text(
-              'Continuar sin entradas',
-              style: TextStyle(color: Colors.white),
+            child: Text(
+              widget.isTableOccupied
+                  ? 'Volver sin agregar'
+                  : 'Continuar sin entradas',
+              style: const TextStyle(color: Colors.white),
             ),
           ),
         ],

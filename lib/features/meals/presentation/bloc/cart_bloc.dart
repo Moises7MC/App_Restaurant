@@ -47,15 +47,31 @@ class CartBloc extends Bloc<CartEvent, CartState> {
     }
   }
 
-  // ✅ NUEVO: guardar entradas para la mesa actual
+  // ✅ NUEVO: guardar entradas para la mesa actual (con opción de concatenar)
   Future<void> _onSetEntradas(
     SetEntradas event,
     Emitter<CartState> emit,
   ) async {
     print(
-      '💾 SetEntradas - key: "$_currentTableKey" - valor: "${event.entradas}"',
+      '💾 SetEntradas - key: "$_currentTableKey" - valor: "${event.entradas}" - append: ${event.append}',
     );
-    _entradasByTable[_currentTableKey] = event.entradas;
+
+    if (event.append) {
+      // Si queremos unir, buscamos lo que ya había
+      final currentEntradas = _entradasByTable[_currentTableKey];
+      if (currentEntradas != null && currentEntradas.isNotEmpty) {
+        // 🛑 AQUÍ ESTÁ EL CAMBIO: Unimos con salto de línea y un identificador visual
+        _entradasByTable[_currentTableKey] =
+            '$currentEntradas\n🔸 NUEVO: ${event.entradas}';
+      } else {
+        // Si no había nada antes, simplemente lo guardamos
+        _entradasByTable[_currentTableKey] = event.entradas;
+      }
+    } else {
+      // Si no queremos unir, sobrescribimos como antes
+      _entradasByTable[_currentTableKey] = event.entradas;
+    }
+
     _emitLoaded(emit);
   }
 

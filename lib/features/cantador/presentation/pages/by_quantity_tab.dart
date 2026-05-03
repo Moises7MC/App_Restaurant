@@ -8,10 +8,6 @@ import '../../domain/entities/aggregated_dish.dart';
 import '../../domain/entities/aggregated_entrada.dart';
 import '../widgets/cantador_colors.dart';
 
-/// Tab "POR CANTIDADES" — vista por defecto del cantador.
-///
-/// Muestra entradas (amber) y segundos (teal) agregados de todas las mesas
-/// con un botón [-] grande para descontar al servir.
 class ByQuantityTab extends StatelessWidget {
   const ByQuantityTab({super.key});
 
@@ -44,10 +40,8 @@ class ByQuantityTab extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ── Columna izquierda: ENTRADAS ──
                 Expanded(flex: 5, child: _buildEntradasColumn(context, state)),
                 const SizedBox(width: 12),
-                // ── Columna derecha: SEGUNDOS ──
                 Expanded(flex: 7, child: _buildSegundosColumn(context, state)),
               ],
             ),
@@ -88,27 +82,26 @@ class ByQuantityTab extends StatelessWidget {
     AggregatedEntrada entrada,
     Set<String> servidasLocales,
   ) {
-    final isServida = servidasLocales.contains(
-      entrada.name.toLowerCase().trim(),
-    );
+    final key = entrada.name.toLowerCase().trim();
+    final isServida = servidasLocales.contains(key);
 
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: isServida
-            ? CantadorColors.entradaBg.withValues(alpha: 0.4)
+            ? CantadorColors.entradaBg.withOpacity(0.4)
             : CantadorColors.entradaBg,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
-          // Círculo grande con cantidad
+          // Cantidad
           Container(
             width: 44,
             height: 44,
             decoration: BoxDecoration(
               color: isServida
-                  ? CantadorColors.entradaCircle.withValues(alpha: 0.4)
+                  ? CantadorColors.entradaCircle.withOpacity(0.4)
                   : CantadorColors.entradaCircle,
               shape: BoxShape.circle,
             ),
@@ -123,6 +116,7 @@ class ByQuantityTab extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
+
           // Nombre + mesas
           Expanded(
             child: Column(
@@ -134,9 +128,7 @@ class ByQuantityTab extends StatelessWidget {
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: CantadorColors.entradaTextDark,
-                    decoration: isServida
-                        ? TextDecoration.lineThrough
-                        : TextDecoration.none,
+                    decoration: isServida ? TextDecoration.lineThrough : null,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -152,7 +144,8 @@ class ByQuantityTab extends StatelessWidget {
               ],
             ),
           ),
-          // Botón tachar/destachar (solo visual, no envía al backend)
+
+          // Botón [-] (visual)
           GestureDetector(
             onTap: () {
               context.read<CantadorBloc>().add(
@@ -181,10 +174,7 @@ class ByQuantityTab extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  // ═══════════════════════════════════════════════════
-  // SEGUNDOS
+  } // SEGUNDOS (SIN CAMBIOS)
   // ═══════════════════════════════════════════════════
 
   Widget _buildSegundosColumn(BuildContext context, CantadorLoaded state) {
@@ -199,7 +189,6 @@ class ByQuantityTab extends StatelessWidget {
         const SizedBox(height: 8),
         if (state.aggregated.segundos.isEmpty)
           _buildEmptyHint('Sin segundos pendientes'),
-        // Grid de 2 columnas
         Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -254,8 +243,6 @@ class ByQuantityTab extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                     color: CantadorColors.segundoTextDark,
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -264,15 +251,14 @@ class ByQuantityTab extends StatelessWidget {
                     fontSize: 10,
                     color: CantadorColors.segundoTextMid,
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
-          // Botón [-] grande para descontar
           GestureDetector(
-            onTap: () => _onServeTap(context, dish),
+            onTap: () => context.read<CantadorBloc>().add(
+              ServeDishEvent(dish.productId),
+            ),
             child: Container(
               width: 36,
               height: 36,
@@ -297,27 +283,6 @@ class ByQuantityTab extends StatelessWidget {
     );
   }
 
-  Future<void> _onServeTap(BuildContext context, AggregatedDish dish) async {
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      context.read<CantadorBloc>().add(ServeDishEvent(dish.productId));
-      // Pequeño feedback
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('✓ ${dish.productName} servido'),
-          backgroundColor: CantadorColors.segundoCircle,
-          duration: const Duration(milliseconds: 800),
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.all(12),
-        ),
-      );
-    } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
-      );
-    }
-  }
-
   // ═══════════════════════════════════════════════════
   // HELPERS
   // ═══════════════════════════════════════════════════
@@ -336,31 +301,16 @@ class ByQuantityTab extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Text(icon, style: const TextStyle(fontSize: 18)),
+          Text(icon),
           const SizedBox(width: 8),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 0.4,
-              color: AppColors.textPrimary,
-            ),
-          ),
+          Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
           const Spacer(),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-            decoration: BoxDecoration(
-              color: CantadorColors.primary,
-              borderRadius: BorderRadius.circular(20),
-            ),
+          CircleAvatar(
+            radius: 14,
+            backgroundColor: CantadorColors.primary,
             child: Text(
               '$total',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(color: Colors.white, fontSize: 12),
             ),
           ),
         ],
@@ -368,77 +318,9 @@ class ByQuantityTab extends StatelessWidget {
     );
   }
 
-  Widget _buildEmpty() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Text('🍽️', style: TextStyle(fontSize: 64)),
-          const SizedBox(height: 12),
-          Text(
-            'Sin pedidos pendientes',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey.shade600,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Cuando los mozos envíen pedidos, aparecerán aquí',
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyHint(String text) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 14),
-      child: Center(
-        child: Text(
-          text,
-          style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildError(BuildContext context, String message) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 56, color: Colors.red),
-            const SizedBox(height: 12),
-            Text(
-              'Error al cargar datos',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              message,
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.refresh),
-              label: const Text('Reintentar'),
-              onPressed: () {
-                context.read<CantadorBloc>().add(const LoadCantadorData());
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: CantadorColors.primary,
-                foregroundColor: Colors.white,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget _buildEmpty() => const Center(child: Text('Sin pedidos pendientes'));
+  Widget _buildEmptyHint(String t) =>
+      Center(child: Text(t, style: const TextStyle(fontSize: 12)));
+  Widget _buildError(BuildContext c, String m) =>
+      Center(child: Text(m, textAlign: TextAlign.center));
 }

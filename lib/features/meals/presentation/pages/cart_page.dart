@@ -18,6 +18,7 @@ class CartPage extends StatefulWidget {
   final int? activeOrderId;
   final Map<int, int> backendItemIds;
   final bool isParaLlevar;
+  final String? entradasFromBackend;
 
   const CartPage({
     super.key,
@@ -27,6 +28,7 @@ class CartPage extends StatefulWidget {
     this.activeOrderId,
     this.backendItemIds = const {},
     this.isParaLlevar = false,
+    this.entradasFromBackend,
   });
 
   @override
@@ -34,9 +36,7 @@ class CartPage extends StatefulWidget {
 }
 
 class _CartPageState extends State<CartPage> {
-  // ✅ Copias mutables de los datos del backend.
-  //    Se inicializan con lo que viene de ProductsPage y se actualizan
-  //    cuando el mozo edita/elimina items ya enviados a cocina.
+  // Copias mutables de los datos del backend.
   late Map<int, int> _itemsFromBackend;
   late Map<int, int> _backendItemIds;
 
@@ -52,9 +52,7 @@ class _CartPageState extends State<CartPage> {
     return prefs.getString('WAITER_FULL_NAME') ?? 'Mozo';
   }
 
-  // ✅ Calcula si hay items realmente nuevos respecto a lo enviado al backend.
-  //    - Sin orden activa → cualquier item del carrito es "nuevo".
-  //    - Con orden activa → comparar contra _itemsFromBackend (que ya está sincronizado).
+  // Calcula si hay items realmente nuevos respecto a lo enviado al backend.
   bool _hasNewItems(CartLoaded state) {
     if (widget.activeOrderId == null) {
       return state.items.isNotEmpty;
@@ -153,7 +151,21 @@ class _CartPageState extends State<CartPage> {
   }
 
   Widget _buildBottomBar(BuildContext context, CartLoaded state) {
-    final hasNewItems = _hasNewItems(state);
+    // ✅ LÓGICA CORREGIDA: Verificamos si las entradas realmente cambiaron
+    bool entradasChanged = false;
+    final currentEntradas = state.entradas?.trim() ?? '';
+
+    if (widget.activeOrderId != null) {
+      // Comparamos el texto actual vs el original del backend
+      final backendEntradas = widget.entradasFromBackend?.trim() ?? '';
+      entradasChanged = currentEntradas != backendEntradas;
+    } else {
+      // Si es una mesa nueva, cualquier entrada cuenta como cambio
+      entradasChanged = currentEntradas.isNotEmpty;
+    }
+
+    // Se habilita SOLO si hay items nuevos O si el texto de entradas cambió
+    final hasNewItems = _hasNewItems(state) || entradasChanged;
 
     return Container(
       padding: const EdgeInsets.all(24.0),
@@ -199,7 +211,8 @@ class _CartPageState extends State<CartPage> {
             onPressed: !hasNewItems
                 ? null
                 : () async {
-                    if (state.totalItems == 0) return;
+                    // Verificamos de nuevo por seguridad
+                    if (state.totalItems == 0 && !entradasChanged) return;
 
                     final cartBloc = context.read<CartBloc>();
                     final cashFlowBloc = context.read<CashFlowBloc>();
@@ -233,18 +246,24 @@ class _CartPageState extends State<CartPage> {
                             )
                             .toList();
 
-                        if (itemsToSend.isEmpty) {
+                        // ✅ CORREGIDO: Validamos usando la nueva bandera
+                        if (itemsToSend.isEmpty && !entradasChanged) {
                           messenger.showSnackBar(
                             const SnackBar(
-                              content: Text('No hay items nuevos para enviar'),
+                              content: Text(
+                                'No hay items ni entradas para enviar',
+                              ),
                               backgroundColor: AppColors.warning,
                             ),
                           );
                           return;
                         }
+
+                        // Enviar los items y las entradas actualizadas
                         await ApiService.addItemToExistingOrder(
                           lastOrder['id'],
                           itemsToSend,
+                          entradas: state.entradas,
                         );
                       } else {
                         await ApiService.createOrder({
@@ -293,7 +312,7 @@ class _CartPageState extends State<CartPage> {
                         ),
                       );
 
-                      cartBloc.add(LimpiarCarrito());
+                      cartBloc.add(const LimpiarCarrito());
                       navigator.pop();
                     } catch (e) {
                       messenger.showSnackBar(

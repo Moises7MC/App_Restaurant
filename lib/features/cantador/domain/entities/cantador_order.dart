@@ -1,6 +1,5 @@
 import 'package:equatable/equatable.dart';
 
-/// Item de una orden tal como lo ve el cantador.
 class CantadorOrderItem extends Equatable {
   final int id;
   final int productId;
@@ -16,10 +15,7 @@ class CantadorOrderItem extends Equatable {
     required this.servedQuantity,
   });
 
-  /// Cuántas unidades faltan por servir
   int get pendingQuantity => quantity - servedQuantity;
-
-  /// Si todas las unidades de este item ya fueron servidas
   bool get isFullyServed => servedQuantity >= quantity;
 
   factory CantadorOrderItem.fromJson(Map<String, dynamic> json) {
@@ -44,7 +40,6 @@ class CantadorOrderItem extends Equatable {
   ];
 }
 
-/// Orden tal como la ve el cantador.
 class CantadorOrder extends Equatable {
   final int id;
   final int tableNumber;
@@ -53,6 +48,7 @@ class CantadorOrder extends Equatable {
   final String? waiterName;
   final int customerCount;
   final String? entradas;
+  final List<String> entradasServidas; // ✅ nuevo
   final bool isParaLlevar;
   final bool wasSung;
   final DateTime createdAt;
@@ -67,6 +63,7 @@ class CantadorOrder extends Equatable {
     this.waiterName,
     required this.customerCount,
     this.entradas,
+    this.entradasServidas = const [], // ✅ nuevo
     required this.isParaLlevar,
     required this.wasSung,
     required this.createdAt,
@@ -74,19 +71,37 @@ class CantadorOrder extends Equatable {
     required this.items,
   });
 
-  /// Cuántos minutos lleva esta orden en cocina
   int get minutesInKitchen {
     final now = DateTime.now();
     return now.difference(createdAt.toLocal()).inMinutes;
   }
 
-  /// Cuántos platos faltan por servir
   int get pendingDishes => items.fold(0, (sum, i) => sum + i.pendingQuantity);
-
-  /// Si todos los platos ya fueron servidos
   bool get isCompletelyServed => items.every((i) => i.isFullyServed);
 
   factory CantadorOrder.fromJson(Map<String, dynamic> json) {
+    // EntradasServidas puede venir como JSON string "["sopa","ensalada"]"
+    // o como lista directa
+    List<String> entradasServidas = [];
+    final raw = json['entradasServidas'];
+    if (raw != null) {
+      if (raw is List) {
+        entradasServidas = raw.map((e) => e.toString()).toList();
+      } else if (raw is String && raw.isNotEmpty) {
+        try {
+          // Parsear el JSON string del backend
+          final decoded = raw
+              .replaceAll('[', '')
+              .replaceAll(']', '')
+              .split(',')
+              .map((e) => e.trim().replaceAll('"', ''))
+              .where((e) => e.isNotEmpty)
+              .toList();
+          entradasServidas = decoded;
+        } catch (_) {}
+      }
+    }
+
     return CantadorOrder(
       id: json['id'] as int,
       tableNumber: json['tableNumber'] as int,
@@ -95,6 +110,7 @@ class CantadorOrder extends Equatable {
       waiterName: json['waiterName'] as String?,
       customerCount: (json['customerCount'] as int?) ?? 1,
       entradas: json['entradas'] as String?,
+      entradasServidas: entradasServidas, // ✅ nuevo
       isParaLlevar: (json['isParaLlevar'] as bool?) ?? false,
       wasSung: (json['wasSung'] as bool?) ?? false,
       createdAt: DateTime.parse(json['createdAt'] as String),
@@ -113,5 +129,6 @@ class CantadorOrder extends Equatable {
     wasSung,
     items,
     updatedAt,
+    entradasServidas,
   ];
 }

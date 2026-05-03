@@ -117,15 +117,17 @@ class ApiService {
     }
   }
 
-  /// Agrega items a una orden existente — incluye el nombre del mozo
+  /// Agrega items a una orden existente — incluye el nombre del mozo y las nuevas entradas
   static Future<dynamic> addItemToExistingOrder(
     int orderId,
-    List<Map<String, dynamic>> items,
-  ) async {
+    List<Map<String, dynamic>> items, {
+    String? entradas, // 🛑 NUEVO: parámetro opcional para las entradas
+  }) async {
     final response = await http.post(
       Uri.parse('$baseUrl/order/$orderId/items-batch'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(items),
+      // 🛑 NUEVO FORMATO DE PAYLOAD: Enviamos el objeto con Items y Entradas
+      body: jsonEncode({'Items': items, 'Entradas': entradas}),
     );
     if (response.statusCode == 200) return jsonDecode(response.body);
     throw Exception('Error agregando items: ${response.body}');
@@ -309,5 +311,24 @@ class ApiService {
       return jsonDecode(response.body) as Map<String, dynamic>;
     }
     throw Exception('Error al marcar como cantado: ${response.body}');
+  }
+
+  /// Marca o desmarca una entrada como servida en BD.
+  static Future<void> servirEntrada(
+    int orderId,
+    String entradaName,
+    bool servida,
+  ) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/cantador/$orderId/servir-entrada'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'entradaName': entradaName, 'servida': servida}),
+        )
+        .timeout(const Duration(seconds: 10));
+
+    if (response.statusCode != 200) {
+      throw Exception('Error al marcar entrada: ${response.body}');
+    }
   }
 }
