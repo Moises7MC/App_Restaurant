@@ -11,6 +11,7 @@ import '../bloc/cart_state.dart';
 import '../../../../services/api_service.dart';
 import '../pages/cart_page.dart';
 import '../pages/entrada_selection_page.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class ProductsPage extends StatefulWidget {
   final String mealType;
@@ -212,18 +213,28 @@ class _ProductsPageState extends State<ProductsPage> {
 
   List<Map<String, dynamic>> _getFilteredProducts() {
     if (_categories.isEmpty) return [];
-    final category = _categories[_selectedCategoryIndex];
-    final products = List<Map<String, dynamic>>.from(
-      category['products'] ?? [],
-    );
-    if (_searchQuery.isEmpty) return products;
-    return products
-        .where(
-          (p) => (p['name'] as String).toLowerCase().contains(
+
+    // Si hay búsqueda, buscar en TODAS las categorías
+    if (_searchQuery.isNotEmpty) {
+      final allProducts = <Map<String, dynamic>>[];
+      for (final category in _categories) {
+        final products = List<Map<String, dynamic>>.from(
+          category['products'] ?? [],
+        );
+        for (final p in products) {
+          if ((p['name'] as String).toLowerCase().contains(
             _searchQuery.toLowerCase(),
-          ),
-        )
-        .toList();
+          )) {
+            allProducts.add(p);
+          }
+        }
+      }
+      return allProducts;
+    }
+
+    // Sin búsqueda: mostrar solo la categoría seleccionada
+    final category = _categories[_selectedCategoryIndex];
+    return List<Map<String, dynamic>>.from(category['products'] ?? []);
   }
 
   Future<void> _openParaLlevar() async {
@@ -315,21 +326,27 @@ class _ProductsPageState extends State<ProductsPage> {
           ),
 
           // ✅ NUEVO: Botón para agregar entradas en mesa ocupada
-          if (!widget.isParaLlevar && _activeOrderId != null)
-            IconButton(
-              icon: const Icon(Icons.restaurant_menu),
-              tooltip: 'Agregar entradas',
-              onPressed: _openEntradasForOccupiedTable,
-            ),
+          // if (!widget.isParaLlevar && _activeOrderId != null)
+          //   IconButton(
+          //     icon: const Icon(Icons.restaurant_menu),
+          //     tooltip: 'Agregar entradas',
+          //     onPressed: _openEntradasForOccupiedTable,
+          //   ),
 
           // Botón Para llevar
-          if (!widget.isParaLlevar)
+          if (!widget.isParaLlevar && _activeOrderId != null)
             IconButton(
               icon: const Icon(Icons.shopping_bag_outlined),
               tooltip: 'Para llevar',
               onPressed: _openParaLlevar,
             ),
           const SizedBox(width: 4),
+
+          // Botón ver para llevar
+          IconButton(
+            icon: const Icon(Icons.shopping_basket_sharp),
+            onPressed: _showParaLlevarModal,
+          ),
         ],
       ),
       body: SafeArea(
@@ -848,6 +865,138 @@ class _ProductsPageState extends State<ProductsPage> {
     return Container(
       color: AppColors.primaryLight.withValues(alpha: 0.15),
       child: const Center(child: Text('🍽️', style: TextStyle(fontSize: 32))),
+    );
+  }
+
+  Future<void> _showParaLlevarModal() async {
+    // Buscar la orden para llevar de esta mesa
+    final order = await ApiService.getLastPendingOrder(
+      widget.tableNumber,
+      isParaLlevar: true,
+    );
+
+    if (!mounted) return;
+
+    if (order == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No hay pedidos para llevar')),
+      );
+      return;
+    }
+
+    final entradas = order['entradas']?.toString() ?? '';
+    final items = order['items'] as List<dynamic>? ?? [];
+
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                children: [
+                  const Icon(
+                    Icons.shopping_bag_outlined,
+                    color: Color(0xFF7c3aed),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Para llevar',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF7c3aed),
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop(),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+              const Divider(),
+              const SizedBox(height: 8),
+
+              // ENTRADAS
+              if (entradas.isNotEmpty) ...[
+                const Text(
+                  'ENTRADAS',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                    color: Colors.grey,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFAEEDA),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(entradas, style: const TextStyle(fontSize: 14)),
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              // SEGUNDOS
+              if (items.isNotEmpty) ...[
+                const Text(
+                  'SEGUNDOS',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                    color: Colors.grey,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                ...items.map((item) {
+                  final name = item['product']?['name'] ?? 'Producto';
+                  final qty = item['quantity'] ?? 0;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEEEDFE),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            '${qty}x',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF7c3aed),
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(name, style: const TextStyle(fontSize: 14)),
+                      ],
+                    ),
+                  );
+                }),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

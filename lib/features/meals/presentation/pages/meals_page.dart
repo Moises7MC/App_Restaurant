@@ -4,9 +4,6 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/routes/app_router.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../bloc/cash_flow_bloc.dart';
-import '../pages/cash_flow_page.dart';
-import '../bloc/cash_flow_state.dart';
 
 /// Página de selección de comidas
 ///
@@ -49,77 +46,15 @@ class MealsPage extends StatelessWidget {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.error,
                       ),
-                      child: const Text('Cerrar Sesión'),
+                      child: const Text(
+                        'Cerrar Sesión',
+                        style: TextStyle(color: Colors.white),
+                      ),
                     ),
                   ],
                 ),
               );
             },
-          ),
-          // Botón Flujo de Caja
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: BlocBuilder<CashFlowBloc, CashFlowState>(
-              builder: (context, state) {
-                // Mostrar cantidad de transacciones si hay
-                int transactionCount = state is CashFlowLoaded
-                    ? state.transactions.length
-                    : 0;
-
-                return GestureDetector(
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => const CashFlowPage(),
-                      ),
-                    );
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.account_balance_wallet, size: 20),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Caja',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        if (transactionCount > 0) ...[
-                          const SizedBox(width: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              transactionCount.toString(),
-                              style: const TextStyle(
-                                color: AppColors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
           ),
         ],
       ),
