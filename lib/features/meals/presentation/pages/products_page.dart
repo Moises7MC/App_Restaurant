@@ -227,13 +227,16 @@ class _ProductsPageState extends State<ProductsPage> {
   }
 
   Future<void> _openParaLlevar() async {
+    final paraLlevarBloc = CartBloc();
+
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => BlocProvider(
-          create: (_) => CartBloc(),
-          child: ProductsPage(
+        builder: (_) => BlocProvider.value(
+          value: paraLlevarBloc,
+          child: EntradaSelectionPage(
             mealType: widget.mealType,
             tableNumber: widget.tableNumber,
+            customerCount: 1,
             isParaLlevar: true,
           ),
         ),

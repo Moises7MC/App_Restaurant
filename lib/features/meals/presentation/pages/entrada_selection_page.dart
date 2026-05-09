@@ -10,16 +10,16 @@ class EntradaSelectionPage extends StatefulWidget {
   final String mealType;
   final int tableNumber;
   final int customerCount;
-
-  /// ✅ NUEVO: indica si la mesa ya está ocupada (tiene orden activa)
   final bool isTableOccupied;
+  final bool isParaLlevar; // ✅ NUEVO
 
   const EntradaSelectionPage({
     super.key,
     required this.mealType,
     required this.tableNumber,
     required this.customerCount,
-    this.isTableOccupied = false, // ✅ default false para mesas nuevas
+    this.isTableOccupied = false,
+    this.isParaLlevar = false, // ✅ NUEVO
   });
 
   @override
@@ -31,7 +31,6 @@ class _EntradaSelectionPageState extends State<EntradaSelectionPage> {
   bool _loading = true;
   String? _error;
 
-  // cantidad por entrada: nombre → cantidad
   final Map<String, int> _quantities = {};
 
   @override
@@ -76,27 +75,28 @@ class _EntradaSelectionPageState extends State<EntradaSelectionPage> {
     final entradasText = _buildEntradasText();
     final cartBloc = context.read<CartBloc>();
 
-    // ✅ Solo hacer SelectTable si es mesa NUEVA (no ocupada)
-    // Si la mesa ya está ocupada, el SelectTable ya se hizo en products_page
-    if (!widget.isTableOccupied) {
+    if (!widget.isTableOccupied && !widget.isParaLlevar) {
+      // Mesa normal nueva
       cartBloc.add(
         SelectTable(mealType: widget.mealType, tableNumber: widget.tableNumber),
       );
+    } else if (widget.isParaLlevar) {
+      // Para llevar: usar clave negativa igual que ProductsPage
+      cartBloc.add(
+        SelectTable(
+          mealType: widget.mealType,
+          tableNumber: -(widget.tableNumber),
+        ),
+      );
     }
 
-    // ✅ Guardar las entradas si hay alguna seleccionada
     if (entradasText.isNotEmpty) {
-      // Si la mesa está ocupada, le decimos que haga "append: true" para no borrar lo anterior
       cartBloc.add(SetEntradas(entradasText, append: widget.isTableOccupied));
     }
 
-    // ✅ CAMBIO CRÍTICO: decidir entre push o pop según si la mesa está ocupada
     if (widget.isTableOccupied) {
-      // Mesa ocupada: simplemente volver atrás (pop)
-      // Esto preserva el estado del carrito en ProductsPage
       Navigator.of(context).pop();
     } else {
-      // Mesa nueva: navegar por primera vez a ProductsPage (pushReplacement)
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => BlocProvider.value(
@@ -104,6 +104,7 @@ class _EntradaSelectionPageState extends State<EntradaSelectionPage> {
             child: ProductsPage(
               mealType: widget.mealType,
               tableNumber: widget.tableNumber,
+              isParaLlevar: widget.isParaLlevar,
             ),
           ),
         ),
@@ -115,7 +116,11 @@ class _EntradaSelectionPageState extends State<EntradaSelectionPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Entradas — Mesa ${widget.tableNumber}'),
+        title: Text(
+          widget.isParaLlevar
+              ? 'Entradas — Para llevar'
+              : 'Entradas — Mesa ${widget.tableNumber}',
+        ),
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -160,7 +165,6 @@ class _EntradaSelectionPageState extends State<EntradaSelectionPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Header
         Container(
           margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
           padding: const EdgeInsets.all(14),
@@ -180,6 +184,8 @@ class _EntradaSelectionPageState extends State<EntradaSelectionPage> {
                     Text(
                       widget.isTableOccupied
                           ? 'Agregar entradas'
+                          : widget.isParaLlevar
+                          ? 'Entradas para llevar'
                           : 'Entradas del día',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
@@ -235,7 +241,6 @@ class _EntradaSelectionPageState extends State<EntradaSelectionPage> {
                 ),
         ),
 
-        // Botón confirmar
         Padding(
           padding: const EdgeInsets.all(16),
           child: ElevatedButton(
@@ -290,7 +295,6 @@ class _EntradaSelectionPageState extends State<EntradaSelectionPage> {
       ),
       child: Row(
         children: [
-          // Icono
           Container(
             width: 44,
             height: 44,
@@ -306,7 +310,6 @@ class _EntradaSelectionPageState extends State<EntradaSelectionPage> {
           ),
           const SizedBox(width: 14),
 
-          // Nombre
           Expanded(
             child: Text(
               name,
@@ -318,7 +321,6 @@ class _EntradaSelectionPageState extends State<EntradaSelectionPage> {
             ),
           ),
 
-          // Controles cantidad
           Row(
             children: [
               GestureDetector(
