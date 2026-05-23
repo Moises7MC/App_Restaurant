@@ -260,8 +260,12 @@ class _PisoTabsPageState extends State<PisoTabsPage> {
         const SizedBox(width: 6),
         Expanded(
           child: Text(
-            'Mesa ${entry.tableNumber} - ${entry.waiterName}'
-            '${entry.isParaLlevar ? ' 🛍' : ''}',
+            entry.tableNumber == 0
+                ? '🛍 Para llevar - ${entry.waiterName}'
+                : entry.isParaLlevar
+                ? '🛍 Mesa ${entry.tableNumber} - ${entry.waiterName}'
+                : 'Mesa ${entry.tableNumber} - ${entry.waiterName}'
+                      '${entry.isParaLlevar ? ' 🛍' : ''}',
             style: TextStyle(
               decoration: servido ? TextDecoration.lineThrough : null,
               color: servido ? Colors.grey : null,
@@ -422,8 +426,12 @@ class _PisoTabsPageState extends State<PisoTabsPage> {
         const SizedBox(width: 6),
         Expanded(
           child: Text(
-            'Mesa ${entry.tableNumber} - ${entry.waiterName}'
-            '${entry.isParaLlevar ? ' 🛍' : ''}',
+            entry.tableNumber == 0
+                ? '🛍 Para llevar - ${entry.waiterName}'
+                : entry.isParaLlevar
+                ? '🛍 Mesa ${entry.tableNumber} - ${entry.waiterName}'
+                : 'Mesa ${entry.tableNumber} - ${entry.waiterName}'
+                      '${entry.isParaLlevar ? ' 🛍' : ''}',
             style: TextStyle(
               decoration: servido ? TextDecoration.lineThrough : null,
               color: servido ? Colors.grey : null,
