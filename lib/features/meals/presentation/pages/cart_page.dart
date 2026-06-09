@@ -92,52 +92,75 @@ class _CartPageState extends State<CartPage> {
               return Column(
                 children: [
                   Expanded(
-                    child: state.items.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.shopping_bag_outlined,
-                                  size: 64,
-                                  color: Colors.grey.shade300,
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // 🍲 SECCIÓN: Tarjeta de Entradas de la Mesa (Nuevos comensales)
+                          _buildEntradasCard(context, state),
+                          const SizedBox(height: 24),
+
+                          // Título separador para la sección de Segundos
+                          Text(
+                            'Segundos / Platos Fuertes',
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey.shade700,
                                 ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  'Carrito vacío',
-                                  style: TextStyle(
-                                    color: Colors.grey.shade400,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  widget.isParaLlevar
-                                      ? 'Agrega productos para llevar'
-                                      : 'Agrega productos al carrito',
-                                  style: TextStyle(
-                                    color: Colors.grey.shade400,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        : SingleChildScrollView(
-                            padding: const EdgeInsets.all(24.0),
-                            child: Column(
-                              children: state.items
-                                  .map(
-                                    (item) => Padding(
-                                      padding: const EdgeInsets.only(
-                                        bottom: 16.0,
-                                      ),
-                                      child: _buildCartItemCard(context, item),
-                                    ),
-                                  )
-                                  .toList(),
-                            ),
                           ),
+                          const SizedBox(height: 12),
+
+                          // Listado de Segundos o indicador parcial si está vacío
+                          state.items.isEmpty
+                              ? Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(32),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade50,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: Colors.grey.shade200,
+                                    ),
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      Icon(
+                                        Icons.restaurant_menu,
+                                        size: 40,
+                                        color: Colors.grey.shade300,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'No hay segundos seleccionados para esta ronda',
+                                        style: TextStyle(
+                                          color: Colors.grey.shade400,
+                                          fontSize: 13,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : Column(
+                                  children: state.items
+                                      .map(
+                                        (item) => Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: 16.0,
+                                          ),
+                                          child: _buildCartItemCard(
+                                            context,
+                                            item,
+                                          ),
+                                        ),
+                                      )
+                                      .toList(),
+                                ),
+                        ],
+                      ),
+                    ),
                   ),
                   _buildBottomBar(context, state),
                 ],
@@ -151,7 +174,7 @@ class _CartPageState extends State<CartPage> {
   }
 
   Widget _buildBottomBar(BuildContext context, CartLoaded state) {
-    // ✅ LÓGICA CORREGIDA: Verificamos si las entradas realmente cambiaron
+    // Verificamos si las entradas realmente cambiaron
     bool entradasChanged = false;
     final currentEntradas = state.entradas?.trim() ?? '';
 
@@ -246,7 +269,6 @@ class _CartPageState extends State<CartPage> {
                             )
                             .toList();
 
-                        // ✅ CORREGIDO: Validamos usando la nueva bandera
                         if (itemsToSend.isEmpty && !entradasChanged) {
                           messenger.showSnackBar(
                             const SnackBar(
@@ -436,7 +458,7 @@ class _CartPageState extends State<CartPage> {
                 width: 60,
                 height: 60,
                 decoration: BoxDecoration(
-                  color: AppColors.primaryLight.withValues(alpha: 0.2),
+                  color: AppColors.primaryLight.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Center(
@@ -474,7 +496,6 @@ class _CartPageState extends State<CartPage> {
               ),
             ],
           ),
-          // Mostrar opciones de Editar/Eliminar para items ya enviados
           if (isFromBackend &&
               widget.activeOrderId != null &&
               backendItemId != null) ...[
@@ -536,9 +557,9 @@ class _CartPageState extends State<CartPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
+          color: color.withOpacity(0.1),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
+          border: Border.all(color: color.withOpacity(0.3)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -648,8 +669,6 @@ class _CartPageState extends State<CartPage> {
                             cartBloc.add(RemoveFromCart(item.product.id));
                           }
                         }
-                        // ✅ Sincronizar el mapa local con la nueva cantidad
-                        //    para que el botón "Enviar" se mantenga deshabilitado.
                         if (mounted) {
                           setState(() {
                             _itemsFromBackend[item.product.id] = newQty;
@@ -705,7 +724,6 @@ class _CartPageState extends State<CartPage> {
                 for (int i = 0; i < item.quantity; i++) {
                   cartBloc.add(RemoveFromCart(item.product.id));
                 }
-                // ✅ Quitar el item de los mapas locales
                 if (mounted) {
                   setState(() {
                     _itemsFromBackend.remove(item.product.id);
@@ -732,6 +750,242 @@ class _CartPageState extends State<CartPage> {
           ),
         ],
       ),
+    );
+  }
+
+  // 🍲 NUEVO MÉTODO: CONSTRUYE LA TARJETA DE ENTRADAS EN LA PARTE SUPERIOR DEL CARRITO
+  Widget _buildEntradasCard(BuildContext context, CartLoaded state) {
+    final hasEntradas =
+        state.entradas != null && state.entradas!.trim().isNotEmpty;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.primary.withOpacity(0.2),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.shadow,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('🍲', style: TextStyle(fontSize: 22)),
+              const SizedBox(width: 8),
+              Text(
+                'Entradas de la Mesa',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (hasEntradas)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Text(
+                state.entradas!,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black87,
+                ),
+              ),
+            )
+          else
+            Text(
+              'No hay entradas seleccionadas para los nuevos comensales aún.',
+              style: TextStyle(
+                color: Colors.grey.shade500,
+                fontSize: 13,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => _showAddEntradaDialog(context),
+              icon: const Icon(Icons.add_circle_outline, size: 18),
+              label: const Text('Agregar Entradas (Nuevos Comensales)'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary.withOpacity(0.1),
+                foregroundColor: AppColors.primary,
+                elevation: 0,
+                side: BorderSide(color: AppColors.primary.withOpacity(0.4)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 🍲 NUEVO MÉTODO: DIÁLOGO INTERACTIVO QUE SE CONECTA CON TUS ENTRADAS DE LA BD
+  void _showAddEntradaDialog(BuildContext context) {
+    final cartBloc = context.read<CartBloc>();
+
+    showDialog(
+      context: context,
+      builder: (dlgContext) {
+        return FutureBuilder<List<dynamic>>(
+          future: ApiService.getTodayEntradas(),
+          builder: (futureContext, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const AlertDialog(
+                content: SizedBox(
+                  height: 60,
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+              );
+            }
+
+            final listaEntradas = snapshot.data ?? [];
+
+            if (listaEntradas.isEmpty) {
+              String entradaManual = '';
+              return AlertDialog(
+                title: const Text('Agregar Entrada'),
+                content: TextField(
+                  decoration: const InputDecoration(
+                    hintText: "Ej: 2x Caldo de gallina",
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (v) => entradaManual = v,
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dlgContext),
+                    child: const Text('Cancelar'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      if (entradaManual.trim().isNotEmpty) {
+                        // ✅ Formato manual corregido para que Angular lo lea bien
+                        cartBloc.add(
+                          SetEntradas(
+                            '\n${entradaManual.trim()} (NUEVO)',
+                            append: true,
+                          ),
+                        );
+                      }
+                      Navigator.pop(dlgContext);
+                    },
+                    child: const Text('Agregar'),
+                  ),
+                ],
+              );
+            }
+
+            Map<String, int> contadores = {};
+            return StatefulBuilder(
+              builder: (statefulContext, setStateDialog) {
+                return AlertDialog(
+                  title: const Text('Seleccionar Entradas adicionales'),
+                  content: SizedBox(
+                    width: double.maxFinite,
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: listaEntradas.length,
+                      itemBuilder: (itemContext, index) {
+                        final name =
+                            listaEntradas[index]['name'] ??
+                            listaEntradas[index].toString();
+                        final cantidad = contadores[name] ?? 0;
+
+                        return ListTile(
+                          title: Text(
+                            name,
+                            style: const TextStyle(fontWeight: FontWeight.w500),
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.remove_circle_outline,
+                                  color: AppColors.error,
+                                ),
+                                onPressed: cantidad > 0
+                                    ? () => setStateDialog(
+                                        () => contadores[name] = cantidad - 1,
+                                      )
+                                    : null,
+                              ),
+                              Text(
+                                '$cantidad',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.add_circle_outline,
+                                  color: AppColors.success,
+                                ),
+                                onPressed: () => setStateDialog(
+                                  () => contadores[name] = cantidad + 1,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(dlgContext),
+                      child: const Text('Cancelar'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () {
+                        // ✅ Formato corregido para que Angular lo lea perfectamente
+                        String resultadoTexto = contadores.entries
+                            .where((e) => e.value > 0)
+                            .map((e) => '${e.value}x ${e.key} (NUEVO)')
+                            .join('\n'); // Unimos con salto de línea limpio
+
+                        if (resultadoTexto.isNotEmpty) {
+                          cartBloc.add(
+                            SetEntradas('\n' + resultadoTexto, append: true),
+                          );
+                        }
+                        Navigator.pop(dlgContext);
+                      },
+                      child: const Text('Confirmar'),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+      },
     );
   }
 }

@@ -157,7 +157,9 @@ class _PisoTabsPageState extends State<PisoTabsPage> {
         final lineas = order.entradas!.split('\n');
         for (final linea in lineas) {
           final trimmed = linea.trim();
-          if (trimmed.isEmpty) continue;
+
+          // Ignoramos la línea basura y las vacías
+          if (trimmed.isEmpty || trimmed == '🔸 NUEVO:') continue;
 
           final match = RegExp(r'^(\d+)x\s+(.+)$').firstMatch(trimmed);
           final nombre = match != null ? match.group(2)! : trimmed;
@@ -180,29 +182,36 @@ class _PisoTabsPageState extends State<PisoTabsPage> {
       }
     }
 
-    // ✅ Sincronizar estado local con backend — respetando cantidad por unidad
+    // 🛑 CORRECCIÓN: ELIMINAR LAS ENTRADAS SERVIDAS PARA QUE DESAPAREZCAN DE LA PANTALLA
     for (final order in pisoOrders) {
-      // Contar cuántas de cada entrada están servidas en el backend
       final conteoServidas = <String, int>{};
       for (final servida in order.entradasServidas) {
         final k = servida.toLowerCase().trim();
         conteoServidas[k] = (conteoServidas[k] ?? 0) + 1;
       }
 
-      // Marcar solo las unidades que corresponden según el conteo
-      for (final entries in grouped.values) {
-        for (final entry in entries) {
-          if (entry.orderId != order.id) continue;
-          final k = entry.entradaName.toLowerCase().trim();
-          final servidasCount = conteoServidas[k] ?? 0;
-          if (servidasCount > 0) {
-            _servidosEntradas.add(entry.key);
-            conteoServidas[k] = servidasCount - 1;
+      for (final key in grouped.keys.toList()) {
+        grouped[key]!.removeWhere((entry) {
+          if (entry.orderId != order.id) return false;
+          final kName = entry.entradaName.toLowerCase().trim();
+          if ((conteoServidas[kName] ?? 0) > 0) {
+            conteoServidas[kName] = conteoServidas[kName]! - 1;
+            // Limpiamos el estado local para mantener la memoria limpia
+            _servidosEntradas.remove(entry.key);
+            // 🛑 MAGIA: Retorna true para ELIMINAR el plato de la pantalla
+            return true;
           }
+          return false;
+        });
+
+        // 🛑 Si la categoría (ej. "tamal") se quedó en 0, borramos el título entero
+        if (grouped[key]!.isEmpty) {
+          grouped.remove(key);
         }
       }
     }
 
+    // Si ya no queda nada, mostramos el mensaje de vacío
     if (grouped.isEmpty) {
       return const Center(child: Text('Sin entradas pendientes'));
     }
@@ -282,7 +291,6 @@ class _PisoTabsPageState extends State<PisoTabsPage> {
             });
 
             try {
-              // ✅ Agregar este print para verificar
               debugPrint(
                 '📡 Llamando servirEntrada: orderId=${entry.orderId}, entrada=${entry.entradaName}, servida=$nuevoEstado',
               );

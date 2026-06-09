@@ -21,10 +21,10 @@ class ApiConfig {
   // Cambiar esta IP por la de la laptop del restaurante.
   // Para verla, abrir CMD y escribir: ipconfig
   // Buscar "Dirección IPv4" del adaptador WiFi (ej: 192.168.1.9)
-  static const String localNetworkIp = '192.168.1.6'; //casa
+  // static const String localNetworkIp = '192.168.1.2'; //casa
   // static const String localNetworkIp = '192.168.0.127'; //Como en casa
 
-  // static const String localNetworkIp = '192.168.18.82'; //--cuarto chiclayo
+  static const String localNetworkIp = '192.168.0.128'; //--cuarto chiclayo
   // static const String localNetworkIp = '192.168.1.10'; //mi soli
 
   // Puerto del backend. NO cambiar a menos que sepas qué haces.
