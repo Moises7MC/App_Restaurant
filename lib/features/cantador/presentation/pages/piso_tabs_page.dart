@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../../core/constants/app_colors.dart';
 import '../../../../services/api_service.dart';
 import '../bloc/cantador_bloc.dart';
 import '../bloc/cantador_event.dart';
 import '../bloc/cantador_state.dart';
 import '../../data/services/piso_resolver.dart';
+import '../../domain/entities/cantador_order.dart';
 
 class PisoTabsPage extends StatefulWidget {
   final PisoResolver pisoResolver;
@@ -16,7 +18,7 @@ class PisoTabsPage extends StatefulWidget {
 
 class _PisoTabsPageState extends State<PisoTabsPage> {
   int _selectedPiso = 0;
-  int _selectedSubTab = 1;
+  int _selectedSubTab = 1; // 0=Entradas, 1=Segundos, 2=Mesas
   final Set<String> _servidosSegundos = {};
   final Set<String> _servidosEntradas = {};
   final Set<int> _expandedSegundos = {};
@@ -50,7 +52,9 @@ class _PisoTabsPageState extends State<PisoTabsPage> {
                 },
                 child: _selectedSubTab == 0
                     ? _buildEntradasContent(state)
-                    : _buildSegundosContent(state),
+                    : _selectedSubTab == 1
+                    ? _buildSegundosContent(state)
+                    : _buildMesasContent(state),
               ),
             ),
           ],
@@ -98,14 +102,18 @@ class _PisoTabsPageState extends State<PisoTabsPage> {
   }
 
   // ─────────────────────────────────────────────
-  // SUB TABS
+  // SUB TABS (ahora 3)
   // ─────────────────────────────────────────────
 
   Widget _buildSubTabs() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Row(
-        children: [_buildSubTab(0, 'Entradas'), _buildSubTab(1, 'Segundos')],
+        children: [
+          _buildSubTab(0, 'Entradas'),
+          _buildSubTab(1, 'Segundos'),
+          _buildSubTab(2, 'Mesas'),
+        ],
       ),
     );
   }
@@ -139,7 +147,7 @@ class _PisoTabsPageState extends State<PisoTabsPage> {
   }
 
   // ─────────────────────────────────────────────
-  // ENTRADAS
+  // ENTRADAS (sin cambios)
   // ─────────────────────────────────────────────
 
   Widget _buildEntradasContent(CantadorLoaded state) {
@@ -157,8 +165,6 @@ class _PisoTabsPageState extends State<PisoTabsPage> {
         final lineas = order.entradas!.split('\n');
         for (final linea in lineas) {
           final trimmed = linea.trim();
-
-          // Ignoramos la línea basura y las vacías
           if (trimmed.isEmpty || trimmed == '🔸 NUEVO:') continue;
 
           final match = RegExp(r'^(\d+)x\s+(.+)$').firstMatch(trimmed);
@@ -182,7 +188,6 @@ class _PisoTabsPageState extends State<PisoTabsPage> {
       }
     }
 
-    // 🛑 CORRECCIÓN: ELIMINAR LAS ENTRADAS SERVIDAS PARA QUE DESAPAREZCAN DE LA PANTALLA
     for (final order in pisoOrders) {
       final conteoServidas = <String, int>{};
       for (final servida in order.entradasServidas) {
@@ -196,22 +201,18 @@ class _PisoTabsPageState extends State<PisoTabsPage> {
           final kName = entry.entradaName.toLowerCase().trim();
           if ((conteoServidas[kName] ?? 0) > 0) {
             conteoServidas[kName] = conteoServidas[kName]! - 1;
-            // Limpiamos el estado local para mantener la memoria limpia
             _servidosEntradas.remove(entry.key);
-            // 🛑 MAGIA: Retorna true para ELIMINAR el plato de la pantalla
             return true;
           }
           return false;
         });
 
-        // 🛑 Si la categoría (ej. "tamal") se quedó en 0, borramos el título entero
         if (grouped[key]!.isEmpty) {
           grouped.remove(key);
         }
       }
     }
 
-    // Si ya no queda nada, mostramos el mensaje de vacío
     if (grouped.isEmpty) {
       return const Center(child: Text('Sin entradas pendientes'));
     }
@@ -273,8 +274,7 @@ class _PisoTabsPageState extends State<PisoTabsPage> {
                 ? '🛍 Para llevar - ${entry.waiterName}'
                 : entry.isParaLlevar
                 ? '🛍 Mesa ${entry.tableNumber} - ${entry.waiterName}'
-                : 'Mesa ${entry.tableNumber} - ${entry.waiterName}'
-                      '${entry.isParaLlevar ? ' 🛍' : ''}',
+                : 'Mesa ${entry.tableNumber} - ${entry.waiterName}',
             style: TextStyle(
               decoration: servido ? TextDecoration.lineThrough : null,
               color: servido ? Colors.grey : null,
@@ -291,23 +291,15 @@ class _PisoTabsPageState extends State<PisoTabsPage> {
             });
 
             try {
-              debugPrint(
-                '📡 Llamando servirEntrada: orderId=${entry.orderId}, entrada=${entry.entradaName}, servida=$nuevoEstado',
-              );
-
               await ApiService.servirEntrada(
                 entry.orderId,
                 entry.entradaName,
                 nuevoEstado,
               );
-
-              debugPrint('✅ servirEntrada OK');
-
               if (mounted) {
                 context.read<CantadorBloc>().add(const RefreshCantadorData());
               }
             } catch (e) {
-              debugPrint('❌ servirEntrada ERROR: $e');
               if (mounted) {
                 setState(() {
                   nuevoEstado
@@ -335,7 +327,7 @@ class _PisoTabsPageState extends State<PisoTabsPage> {
   }
 
   // ─────────────────────────────────────────────
-  // SEGUNDOS
+  // SEGUNDOS (sin cambios)
   // ─────────────────────────────────────────────
 
   Widget _buildSegundosContent(CantadorLoaded state) {
@@ -438,8 +430,7 @@ class _PisoTabsPageState extends State<PisoTabsPage> {
                 ? '🛍 Para llevar - ${entry.waiterName}'
                 : entry.isParaLlevar
                 ? '🛍 Mesa ${entry.tableNumber} - ${entry.waiterName}'
-                : 'Mesa ${entry.tableNumber} - ${entry.waiterName}'
-                      '${entry.isParaLlevar ? ' 🛍' : ''}',
+                : 'Mesa ${entry.tableNumber} - ${entry.waiterName}',
             style: TextStyle(
               decoration: servido ? TextDecoration.lineThrough : null,
               color: servido ? Colors.grey : null,
@@ -480,10 +471,764 @@ class _PisoTabsPageState extends State<PisoTabsPage> {
       ],
     );
   }
+
+  // ─────────────────────────────────────────────
+  // MESAS (nuevo sub-tab)
+  // ─────────────────────────────────────────────
+
+  Widget _buildMesasContent(CantadorLoaded state) {
+    final pisoOrders = state.activeOrders
+        .where(
+          (o) =>
+              widget.pisoResolver.getFloorIndex(o.tableNumber) == _selectedPiso,
+        )
+        .toList();
+
+    if (pisoOrders.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text('🍽️', style: TextStyle(fontSize: 56)),
+            const SizedBox(height: 12),
+            Text(
+              'Sin mesas activas',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Cuando lleguen pedidos aparecerán aquí',
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Resumen superior
+    final totalPendientes = pisoOrders.fold<int>(
+      0,
+      (sum, o) =>
+          sum +
+          o.items.fold<int>(0, (s, i) => s + (i.quantity - i.servedQuantity)),
+    );
+    final totalServidos = pisoOrders.fold<int>(
+      0,
+      (sum, o) => sum + o.items.fold<int>(0, (s, i) => s + i.servedQuantity),
+    );
+
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(12),
+      children: [
+        // ── Resumen ──
+        Row(
+          children: [
+            _buildResumenCard(
+              '${pisoOrders.length}',
+              'Mesas activas',
+              const Color(0xFFBA7517),
+              const Color(0xFFFAEEDA),
+            ),
+            const SizedBox(width: 8),
+            _buildResumenCard(
+              '$totalPendientes',
+              'Pendientes',
+              Colors.grey.shade700,
+              Colors.grey.shade100,
+            ),
+            const SizedBox(width: 8),
+            _buildResumenCard(
+              '$totalServidos',
+              'Servidos',
+              const Color(0xFF0F6E56),
+              const Color(0xFFE1F5EE),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // ── Grid de mesas ──
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: 0.62,
+          ),
+          itemCount: pisoOrders.length,
+          itemBuilder: (context, i) => _buildMesaCard(pisoOrders[i], state),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildResumenCard(
+    String value,
+    String label,
+    Color textColor,
+    Color bgColor,
+  ) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: textColor,
+              ),
+            ),
+            Text(
+              label,
+              style: TextStyle(fontSize: 11, color: textColor.withOpacity(0.8)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMesaCard(CantadorOrder order, CantadorLoaded state) {
+    final mins = order.minutesInKitchen;
+    final borderColor = mins >= 20
+        ? const Color(0xFFE24B4A)
+        : mins >= 8
+        ? const Color(0xFFBA7517)
+        : Colors.grey.shade300;
+    final borderWidth = (mins >= 8) ? 1.5 : 0.5;
+
+    final timerColor = mins >= 20
+        ? const Color(0xFFA32D2D)
+        : mins >= 8
+        ? const Color(0xFF854F0B)
+        : const Color(0xFF0F6E56);
+    final timerBg = mins >= 20
+        ? const Color(0xFFFCEBEB)
+        : mins >= 8
+        ? const Color(0xFFFAEEDA)
+        : const Color(0xFFE1F5EE);
+
+    // Parsear entradas individuales
+    final entradasList = _parsearEntradasIndividuales(
+      order.entradas ?? '',
+      order.entradasServidas,
+    );
+
+    // Items individuales de segundos
+    final segundosList = _expandirItems(order.items, order.id);
+
+    final totalItems = entradasList.length + segundosList.length;
+    final servidosCount =
+        entradasList.where((e) => e.servida).length +
+        segundosList.where((s) => s.servido).length;
+
+    final progreso = totalItems > 0 ? servidosCount / totalItems : 0.0;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor, width: borderWidth),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Header ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 10, 6),
+            child: Row(
+              children: [
+                Text(
+                  'Mesa ${order.tableNumber.toString().padLeft(2, '0')}',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: timerBg,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.access_time, size: 11, color: timerColor),
+                      const SizedBox(width: 3),
+                      Text(
+                        '${mins}min',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: timerColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // ── Mozo ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.person_outline,
+                  size: 12,
+                  color: Colors.grey.shade500,
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    order.waiterName ?? 'Mozo',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                _buildStatusBadge(order.wasSung),
+              ],
+            ),
+          ),
+
+          const Divider(height: 1, thickness: 0.5),
+
+          // ── Lista de platos ──
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(10, 6, 10, 4),
+              children: [
+                if (entradasList.isNotEmpty) ...[
+                  _buildSectionLabel('ENTRADAS'),
+                  ...entradasList.map(
+                    (e) => _buildItemRow(
+                      name: '1 ${e.nombre}',
+                      servido: e.servida,
+                      procesando: _procesando.contains('entrada_${e.key}'),
+                      onTap: () => _onEntradaTap(e, order),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                ],
+                if (segundosList.isNotEmpty) ...[
+                  _buildSectionLabel('SEGUNDOS'),
+                  ...segundosList.map(
+                    (s) => _buildItemRow(
+                      name: '1 ${s.nombre}',
+                      servido: s.servido,
+                      procesando: _procesando.contains('segundo_${s.key}'),
+                      onTap: () => _onSegundoTap(s, order),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+
+          // ── Barra de progreso ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 4, 10, 6),
+            child: Row(
+              children: [
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(2),
+                    child: LinearProgressIndicator(
+                      value: progreso,
+                      backgroundColor: Colors.grey.shade200,
+                      valueColor: const AlwaysStoppedAnimation(
+                        Color(0xFF1D9E75),
+                      ),
+                      minHeight: 4,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '$servidosCount/$totalItems',
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                ),
+              ],
+            ),
+          ),
+
+          // ── Footer botones ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => _showDetalleDialog(order, state),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 7),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: Colors.grey.shade300,
+                          width: 0.5,
+                        ),
+                      ),
+                      child: const Text(
+                        'ver detalle',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => _onTodoListoTap(order),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 7),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE1F5EE),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: const Color(0xFF1D9E75),
+                          width: 0.5,
+                        ),
+                      ),
+                      child: const Text(
+                        'todo listo',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF0F6E56),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionLabel(String label) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 3, top: 2),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 0.5,
+          color: Colors.grey.shade500,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildItemRow({
+    required String name,
+    required bool servido,
+    required bool procesando,
+    required VoidCallback onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              name,
+              style: TextStyle(
+                fontSize: 12,
+                color: servido ? Colors.grey.shade400 : Colors.black87,
+                decoration: servido
+                    ? TextDecoration.lineThrough
+                    : TextDecoration.none,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 6),
+          GestureDetector(
+            onTap: procesando ? null : onTap,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                color: servido ? const Color(0xFF1D9E75) : Colors.white,
+                borderRadius: BorderRadius.circular(5),
+                border: Border.all(
+                  color: servido
+                      ? const Color(0xFF1D9E75)
+                      : Colors.grey.shade400,
+                  width: 1.5,
+                ),
+              ),
+              child: procesando
+                  ? const Padding(
+                      padding: EdgeInsets.all(3),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : servido
+                  ? const Icon(Icons.check, size: 14, color: Colors.white)
+                  : null,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge(bool wasSung) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: wasSung ? const Color(0xFFEEEDFE) : const Color(0xFFFAEEDA),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        wasSung ? 'en cocina' : 'nuevo',
+        style: TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+          color: wasSung ? const Color(0xFF3C3489) : const Color(0xFF854F0B),
+        ),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // ACCIONES MESAS
+  // ─────────────────────────────────────────────
+
+  Future<void> _onEntradaTap(_EntradaIndividual e, CantadorOrder order) async {
+    final key = 'entrada_${e.key}';
+    if (_procesando.contains(key)) return;
+
+    final nuevoEstado = !e.servida;
+    setState(() => _procesando.add(key));
+
+    try {
+      await ApiService.servirEntrada(order.id, e.nombre, nuevoEstado);
+      if (mounted) {
+        context.read<CantadorBloc>().add(const RefreshCantadorData());
+      }
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _procesando.remove(key));
+    }
+  }
+
+  Future<void> _onSegundoTap(_SegundoIndividual s, CantadorOrder order) async {
+    final key = 'segundo_${s.key}';
+    if (_procesando.contains(key) || s.servido) return;
+
+    setState(() => _procesando.add(key));
+
+    try {
+      await ApiService.serveItemById(s.orderItemId);
+      if (mounted) {
+        context.read<CantadorBloc>().add(const RefreshCantadorData());
+      }
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _procesando.remove(key));
+    }
+  }
+
+  Future<void> _onTodoListoTap(CantadorOrder order) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Mesa ${order.tableNumber} — todo listo'),
+        content: const Text(
+          '¿Confirmas que todos los platos de esta mesa fueron entregados?',
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1D9E75),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Confirmar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await ApiService.updateOrderStatus(order.id, 'Listo');
+      if (mounted) {
+        context.read<CantadorBloc>().add(const RefreshCantadorData());
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✓ Mesa ${order.tableNumber} marcada como lista'),
+            backgroundColor: const Color(0xFF1D9E75),
+            duration: const Duration(milliseconds: 1500),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(12),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showDetalleDialog(CantadorOrder order, CantadorLoaded state) {
+    final entradasList = _parsearEntradasIndividuales(
+      order.entradas ?? '',
+      order.entradasServidas,
+    );
+    final segundosList = _expandirItems(order.items, order.id);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    'Mesa ${order.tableNumber.toString().padLeft(2, '0')}',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+              Text(
+                order.waiterName ?? 'Mozo',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+              ),
+              const Divider(height: 20),
+              if (entradasList.isNotEmpty) ...[
+                const Text(
+                  'ENTRADAS',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                    color: Colors.grey,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                ...entradasList.map(
+                  (e) => Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      children: [
+                        Icon(
+                          e.servida
+                              ? Icons.check_circle
+                              : Icons.radio_button_unchecked,
+                          size: 16,
+                          color: e.servida
+                              ? const Color(0xFF1D9E75)
+                              : Colors.grey,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '1 ${e.nombre}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: e.servida ? Colors.grey : Colors.black87,
+                            decoration: e.servida
+                                ? TextDecoration.lineThrough
+                                : null,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+              if (segundosList.isNotEmpty) ...[
+                const Text(
+                  'SEGUNDOS',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                    color: Colors.grey,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                ...segundosList.map(
+                  (s) => Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      children: [
+                        Icon(
+                          s.servido
+                              ? Icons.check_circle
+                              : Icons.radio_button_unchecked,
+                          size: 16,
+                          color: s.servido
+                              ? const Color(0xFF1D9E75)
+                              : Colors.grey,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '1 ${s.nombre}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: s.servido ? Colors.grey : Colors.black87,
+                            decoration: s.servido
+                                ? TextDecoration.lineThrough
+                                : null,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // HELPERS DE DATOS
+  // ─────────────────────────────────────────────
+
+  /// Expande las entradas en filas individuales y marca cuáles ya fueron servidas
+  List<_EntradaIndividual> _parsearEntradasIndividuales(
+    String entradasRaw,
+    List<String> entradasServidas,
+  ) {
+    final result = <_EntradaIndividual>[];
+    if (entradasRaw.isEmpty) return result;
+
+    final lineas = entradasRaw
+        .split('\n')
+        .map((l) => l.trim())
+        .where((l) => l.isNotEmpty && l != '🔸 NUEVO:')
+        .toList();
+
+    final List<String> nombres = [];
+    for (final linea in lineas) {
+      final match = RegExp(r'^(\d+)x\s+(.+)$').firstMatch(linea);
+      if (match != null) {
+        final qty = int.parse(match.group(1)!);
+        final nombre = match.group(2)!.trim();
+        for (int i = 0; i < qty; i++) {
+          nombres.add(nombre);
+        }
+      } else {
+        nombres.add(linea);
+      }
+    }
+
+    // Contar cuántas están servidas por nombre
+    final servidasCopy = List<String>.from(
+      entradasServidas.map((s) => s.toLowerCase().trim()),
+    );
+
+    for (int i = 0; i < nombres.length; i++) {
+      final nombre = nombres[i];
+      final nombreNorm = nombre.toLowerCase().trim();
+      final idx = servidasCopy.indexOf(nombreNorm);
+      final servida = idx >= 0;
+      if (servida) servidasCopy.removeAt(idx);
+
+      result.add(
+        _EntradaIndividual(
+          key: '${nombre}_$i',
+          nombre: nombre,
+          servida: servida,
+        ),
+      );
+    }
+
+    return result;
+  }
+
+  /// Expande los items en filas individuales (1 fila por unidad)
+  List<_SegundoIndividual> _expandirItems(
+    List<CantadorOrderItem> items,
+    int orderId,
+  ) {
+    final result = <_SegundoIndividual>[];
+    for (final item in items) {
+      for (int i = 0; i < item.quantity; i++) {
+        final servido = i < item.servedQuantity;
+        result.add(
+          _SegundoIndividual(
+            key: '${item.id}_$i',
+            orderItemId: item.id,
+            nombre: item.productName,
+            servido: servido,
+            individualIndex: i,
+          ),
+        );
+      }
+    }
+    return result;
+  }
 }
 
 // ─────────────────────────────────────────────
-// MODELOS
+// MODELOS INTERNOS
 // ─────────────────────────────────────────────
 
 class _EntradaEntry {
@@ -537,6 +1282,34 @@ class _OrderEntry {
     required this.waiterName,
     required this.tableNumber,
     required this.isParaLlevar,
+    required this.individualIndex,
+  });
+}
+
+class _EntradaIndividual {
+  final String key;
+  final String nombre;
+  final bool servida;
+
+  _EntradaIndividual({
+    required this.key,
+    required this.nombre,
+    required this.servida,
+  });
+}
+
+class _SegundoIndividual {
+  final String key;
+  final int orderItemId;
+  final String nombre;
+  final bool servido;
+  final int individualIndex;
+
+  _SegundoIndividual({
+    required this.key,
+    required this.orderItemId,
+    required this.nombre,
+    required this.servido,
     required this.individualIndex,
   });
 }

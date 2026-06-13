@@ -8,6 +8,7 @@ import '../bloc/cart_bloc.dart';
 import '../bloc/cart_state.dart';
 import '../pages/entrada_selection_page.dart';
 import 'package:signalr_netcore/signalr_client.dart';
+import '../bloc/cart_event.dart';
 
 class TablesPage extends StatefulWidget {
   final String mealType;
@@ -69,6 +70,25 @@ class _TablesPageState extends State<TablesPage> {
           _floors = List<Map<String, dynamic>>.from(data);
           _loading = false;
         });
+
+        // ✅ Liberar en CartBloc las mesas que el backend ya marcó como Libre
+        final cartBloc = context.read<CartBloc>();
+        for (final floor in _floors) {
+          final tables = floor['tables'] as List<dynamic>;
+          for (final table in tables) {
+            if (table['isOccupied'] == false) {
+              final tableNumber = table['tableNumber'] as int;
+              if (cartBloc.isTableOccupied(widget.mealType, tableNumber)) {
+                cartBloc.add(
+                  LiberarMesa(
+                    mealType: widget.mealType,
+                    tableNumber: tableNumber,
+                  ),
+                );
+              }
+            }
+          }
+        }
       }
     } catch (e) {
       if (mounted) setState(() => _loading = false);
