@@ -310,8 +310,8 @@ class _PisoTabsPageState extends State<PisoTabsPage> {
             }
           },
           child: Container(
-            width: 24,
-            height: 24,
+            width: 14,
+            height: 14,
             decoration: BoxDecoration(
               color: servido ? Colors.amber : Colors.white,
               border: Border.all(color: Colors.amber, width: 2),
@@ -560,7 +560,7 @@ class _PisoTabsPageState extends State<PisoTabsPage> {
             crossAxisCount: 2,
             crossAxisSpacing: 10,
             mainAxisSpacing: 10,
-            childAspectRatio: 0.62,
+            childAspectRatio: 2.5,
           ),
           itemCount: pisoOrders.length,
           itemBuilder: (context, i) => _buildMesaCard(pisoOrders[i], state),
@@ -623,44 +623,43 @@ class _PisoTabsPageState extends State<PisoTabsPage> {
         ? const Color(0xFFFAEEDA)
         : const Color(0xFFE1F5EE);
 
-    // Parsear entradas individuales
     final entradasList = _parsearEntradasIndividuales(
       order.entradas ?? '',
       order.entradasServidas,
     );
-
-    // Items individuales de segundos
     final segundosList = _expandirItems(order.items, order.id);
-
     final totalItems = entradasList.length + segundosList.length;
     final servidosCount =
         entradasList.where((e) => e.servida).length +
         segundosList.where((s) => s.servido).length;
 
-    final progreso = totalItems > 0 ? servidosCount / totalItems : 0.0;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor, width: borderWidth),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Header ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 10, 6),
-            child: Row(
+    return GestureDetector(
+      onTap: () => _showMesaModal(order, state),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: borderColor, width: borderWidth),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // ── Fila 1: nombre + timer ──
+            Row(
               children: [
-                Text(
-                  'Mesa ${order.tableNumber.toString().padLeft(2, '0')}',
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Text(
+                    order.tableNumber == 0
+                        ? 'Para llevar'
+                        : 'Mesa ${order.tableNumber.toString().padLeft(2, '0')}',
+                    style: const TextStyle(
+                      fontSize: 30,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-                const Spacer(),
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 7,
@@ -688,12 +687,9 @@ class _PisoTabsPageState extends State<PisoTabsPage> {
                 ),
               ],
             ),
-          ),
-
-          // ── Mozo ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
-            child: Row(
+            const SizedBox(height: 6),
+            // ── Fila 2: mozo + badge ──
+            Row(
               children: [
                 Icon(
                   Icons.person_outline,
@@ -711,124 +707,460 @@ class _PisoTabsPageState extends State<PisoTabsPage> {
                 _buildStatusBadge(order.wasSung),
               ],
             ),
-          ),
-
-          const Divider(height: 1, thickness: 0.5),
-
-          // ── Lista de platos ──
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(10, 6, 10, 4),
-              children: [
-                if (entradasList.isNotEmpty) ...[
-                  _buildSectionLabel('ENTRADAS'),
-                  ...entradasList.map(
-                    (e) => _buildItemRow(
-                      name: '1 ${e.nombre}',
-                      servido: e.servida,
-                      procesando: _procesando.contains('entrada_${e.key}'),
-                      onTap: () => _onEntradaTap(e, order),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                ],
-                if (segundosList.isNotEmpty) ...[
-                  _buildSectionLabel('SEGUNDOS'),
-                  ...segundosList.map(
-                    (s) => _buildItemRow(
-                      name: '1 ${s.nombre}',
-                      servido: s.servido,
-                      procesando: _procesando.contains('segundo_${s.key}'),
-                      onTap: () => _onSegundoTap(s, order),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-
-          // ── Barra de progreso ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(10, 4, 10, 6),
-            child: Row(
+            const SizedBox(height: 8),
+            // ── Barra de progreso compacta ──
+            Row(
               children: [
                 Expanded(
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(2),
                     child: LinearProgressIndicator(
-                      value: progreso,
+                      value: totalItems > 0 ? servidosCount / totalItems : 0,
                       backgroundColor: Colors.grey.shade200,
                       valueColor: const AlwaysStoppedAnimation(
                         Color(0xFF1D9E75),
                       ),
-                      minHeight: 4,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '$servidosCount/$totalItems',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-                ),
-              ],
-            ),
-          ),
-
-          // ── Footer botones ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => _showDetalleDialog(order, state),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 7),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: Colors.grey.shade300,
-                          width: 0.5,
-                        ),
-                      ),
-                      child: const Text(
-                        'ver detalle',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 12),
-                      ),
+                      minHeight: 3,
                     ),
                   ),
                 ),
                 const SizedBox(width: 6),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => _onTodoListoTap(order),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 7),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE1F5EE),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: const Color(0xFF1D9E75),
-                          width: 0.5,
-                        ),
-                      ),
-                      child: const Text(
-                        'todo listo',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF0F6E56),
-                        ),
-                      ),
-                    ),
-                  ),
+                Text(
+                  '$servidosCount/$totalItems',
+                  style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
                 ),
               ],
             ),
-          ),
-        ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showMesaModal(CantadorOrder initialOrder, CantadorLoaded state) {
+    // 1. CAPTURAMOS EL BLOC ANTES DE ABRIR EL MODAL
+    final cantadorBloc = context.read<CantadorBloc>();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => BlocProvider.value(
+        // 2. INYECTAMOS EL BLOC AL CONTEXTO DEL MODAL
+        value: cantadorBloc,
+        child: StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return BlocBuilder<CantadorBloc, CantadorState>(
+              builder: (ctx, blocState) {
+                // Buscamos la orden actualizada en el estado fresco del BLoC
+                final order = (blocState is CantadorLoaded)
+                    ? blocState.activeOrders.firstWhere(
+                        (o) => o.id == initialOrder.id,
+                        orElse: () => initialOrder,
+                      )
+                    : initialOrder;
+
+                final entradasList = _parsearEntradasIndividuales(
+                  order.entradas ?? '',
+                  order.entradasServidas,
+                );
+                final segundosList = _expandirItems(order.items, order.id);
+                final totalItems = entradasList.length + segundosList.length;
+                final servidosCount =
+                    entradasList.where((e) => e.servida).length +
+                    segundosList.where((s) => s.servido).length;
+
+                return Container(
+                  margin: const EdgeInsets.only(top: 60),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(20),
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      // Handle
+                      Container(
+                        margin: const EdgeInsets.only(top: 12),
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      // Header
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                        child: Row(
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  order.tableNumber == 0
+                                      ? 'Para llevar'
+                                      : 'Mesa ${order.tableNumber.toString().padLeft(2, '0')}',
+                                  style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  order.waiterName ?? 'Mozo',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.grey.shade500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const Spacer(),
+                            IconButton(
+                              icon: const Icon(Icons.close),
+                              onPressed: () => Navigator.of(ctx).pop(),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Progreso
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(3),
+                                child: LinearProgressIndicator(
+                                  value: totalItems > 0
+                                      ? servidosCount / totalItems
+                                      : 0,
+                                  backgroundColor: Colors.grey.shade200,
+                                  valueColor: const AlwaysStoppedAnimation(
+                                    Color(0xFF1D9E75),
+                                  ),
+                                  minHeight: 5,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              '$servidosCount/$totalItems',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Divider(height: 20),
+                      // Lista de platos
+                      Expanded(
+                        child: ListView(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          children: [
+                            if (entradasList.isNotEmpty ||
+                                order.entradasAdicionales.isNotEmpty) ...[
+                              _buildSectionLabel('ENTRADAS'),
+                              ...entradasList.map(
+                                (e) => _buildItemRow(
+                                  name: '1 ${e.nombre}',
+                                  servido: e.servida,
+                                  procesando: _procesando.contains(
+                                    'entrada_${e.key}',
+                                  ),
+                                  onTap: () async {
+                                    final key = 'entrada_${e.key}';
+                                    if (_procesando.contains(key)) return;
+                                    setModalState(() => _procesando.add(key));
+                                    try {
+                                      await ApiService.servirEntrada(
+                                        order.id,
+                                        e.nombre,
+                                        !e.servida,
+                                      );
+                                      if (ctx.mounted) {
+                                        ctx.read<CantadorBloc>().add(
+                                          const RefreshCantadorData(),
+                                        );
+                                      }
+                                    } catch (error) {
+                                      debugPrint(
+                                        "Error al servir entrada: $error",
+                                      );
+                                    } finally {
+                                      if (ctx.mounted) {
+                                        setModalState(
+                                          () => _procesando.remove(key),
+                                        );
+                                      }
+                                    }
+                                  },
+                                ),
+                              ),
+                              // ✅ NUEVO: Entradas adicionales (cobradas aparte)
+                              if (order.entradasAdicionales.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                ...order.entradasAdicionales.asMap().entries.map((
+                                  entry,
+                                ) {
+                                  final idx = entry.key;
+                                  final nombre = entry.value;
+                                  final key =
+                                      'entrada_adicional_${order.id}_$idx';
+                                  final procesandoEsta = _procesando.contains(
+                                    key,
+                                  );
+
+                                  // Calcular servida comparando con entradasServidas de la orden fresca
+                                  final servidasNormalizadas = order
+                                      .entradasServidas
+                                      .map((s) => s.toLowerCase().trim())
+                                      .toList();
+                                  final mismoNombreAntes = order
+                                      .entradasAdicionales
+                                      .sublist(0, idx)
+                                      .where(
+                                        (n) =>
+                                            n.toLowerCase().trim() ==
+                                            nombre.toLowerCase().trim(),
+                                      )
+                                      .length;
+                                  final totalServidasDeEsteNombre =
+                                      servidasNormalizadas
+                                          .where(
+                                            (s) =>
+                                                s ==
+                                                nombre.toLowerCase().trim(),
+                                          )
+                                          .length;
+                                  final servida =
+                                      mismoNombreAntes <
+                                      totalServidasDeEsteNombre;
+
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 3,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Row(
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  '1 $nombre',
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    color: servida
+                                                        ? Colors.grey.shade400
+                                                        : Colors.black87,
+                                                    decoration: servida
+                                                        ? TextDecoration
+                                                              .lineThrough
+                                                        : TextDecoration.none,
+                                                  ),
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 6),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 7,
+                                                      vertical: 2,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(
+                                                    0xFFFEF3C7,
+                                                  ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                  border: Border.all(
+                                                    color: const Color(
+                                                      0xFFFBBF24,
+                                                    ),
+                                                    width: 1,
+                                                  ),
+                                                ),
+                                                child: const Text(
+                                                  '💰 adicional',
+                                                  style: TextStyle(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Color(0xFF92400E),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        GestureDetector(
+                                          onTap: procesandoEsta
+                                              ? null
+                                              : () async {
+                                                  if (_procesando.contains(key))
+                                                    return;
+                                                  setModalState(
+                                                    () => _procesando.add(key),
+                                                  );
+                                                  try {
+                                                    await ApiService.servirEntrada(
+                                                      order.id,
+                                                      nombre,
+                                                      !servida,
+                                                    );
+                                                    if (ctx.mounted) {
+                                                      ctx.read<CantadorBloc>().add(
+                                                        const RefreshCantadorData(),
+                                                      );
+                                                    }
+                                                  } catch (error) {
+                                                    debugPrint(
+                                                      'Error al servir entrada adicional: $error',
+                                                    );
+                                                  } finally {
+                                                    if (ctx.mounted) {
+                                                      setModalState(
+                                                        () => _procesando
+                                                            .remove(key),
+                                                      );
+                                                    }
+                                                  }
+                                                },
+                                          child: AnimatedContainer(
+                                            duration: const Duration(
+                                              milliseconds: 150,
+                                            ),
+                                            width: 22,
+                                            height: 22,
+                                            decoration: BoxDecoration(
+                                              color: servida
+                                                  ? const Color(0xFF1D9E75)
+                                                  : Colors.white,
+                                              borderRadius:
+                                                  BorderRadius.circular(5),
+                                              border: Border.all(
+                                                color: servida
+                                                    ? const Color(0xFF1D9E75)
+                                                    : Colors.grey.shade400,
+                                                width: 1.5,
+                                              ),
+                                            ),
+                                            child: procesandoEsta
+                                                ? const Padding(
+                                                    padding: EdgeInsets.all(3),
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                          strokeWidth: 2,
+                                                          color: Colors.white,
+                                                        ),
+                                                  )
+                                                : servida
+                                                ? const Icon(
+                                                    Icons.check,
+                                                    size: 14,
+                                                    color: Colors.white,
+                                                  )
+                                                : null,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }),
+                              ],
+                              const SizedBox(height: 12),
+                            ],
+                            if (segundosList.isNotEmpty) ...[
+                              _buildSectionLabel('SEGUNDOS'),
+                              ...segundosList.map(
+                                (s) => _buildItemRow(
+                                  name: '1 ${s.nombre}',
+                                  servido: s.servido,
+                                  procesando: _procesando.contains(
+                                    'segundo_${s.key}',
+                                  ),
+                                  onTap: () async {
+                                    final key = 'segundo_${s.key}';
+                                    // Si ya está procesando o ya está servido, no hacemos nada
+                                    if (_procesando.contains(key) || s.servido)
+                                      return;
+
+                                    // Activamos el spinner en el modal
+                                    setModalState(() => _procesando.add(key));
+
+                                    try {
+                                      await ApiService.serveItemById(
+                                        s.orderItemId,
+                                      );
+                                      if (ctx.mounted) {
+                                        ctx.read<CantadorBloc>().add(
+                                          const RefreshCantadorData(),
+                                        );
+                                      }
+                                    } catch (error) {
+                                      debugPrint(
+                                        "Error al servir segundo: $error",
+                                      );
+                                    } finally {
+                                      if (ctx.mounted) {
+                                        // Quitamos el spinner en el modal
+                                        setModalState(
+                                          () => _procesando.remove(key),
+                                        );
+                                      }
+                                    }
+                                  },
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.of(ctx).pop();
+                              _onTodoListoTap(order);
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE1F5EE),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: const Color(0xFF1D9E75),
+                                  width: 1,
+                                ),
+                              ),
+                              child: const Text(
+                                '✓  Todo listo',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF0F6E56),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }
@@ -839,10 +1171,10 @@ class _PisoTabsPageState extends State<PisoTabsPage> {
       child: Text(
         label,
         style: TextStyle(
-          fontSize: 10,
+          fontSize: 20,
           fontWeight: FontWeight.bold,
           letterSpacing: 0.5,
-          color: Colors.grey.shade500,
+          color: Colors.black,
         ),
       ),
     );

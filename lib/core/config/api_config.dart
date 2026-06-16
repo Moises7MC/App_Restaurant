@@ -22,9 +22,9 @@ class ApiConfig {
   // Para verla, abrir CMD y escribir: ipconfig
   // Buscar "Dirección IPv4" del adaptador WiFi (ej: 192.168.1.9)
   // static const String localNetworkIp = '192.168.1.2'; //casa
-  static const String localNetworkIp = '192.168.0.128'; //Como en casa
+  // static const String localNetworkIp = '192.168.0.128'; //Como en casa
 
-  // static const String localNetworkIp = '192.168.18.82'; //--cuarto chiclayo
+  static const String localNetworkIp = '192.168.18.82'; //--cuarto chiclayo
   // static const String localNetworkIp = '192.168.1.10'; //mi soli
 
   // Puerto del backend. NO cambiar a menos que sepas qué haces.

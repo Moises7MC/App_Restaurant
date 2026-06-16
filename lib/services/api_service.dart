@@ -331,4 +331,22 @@ class ApiService {
       throw Exception('Error al marcar entrada: ${response.body}');
     }
   }
+
+  /// Agrega una entrada adicional a una orden existente (se cobra aparte en caja)
+  static Future<void> agregarEntradaAdicional(
+    int orderId,
+    String nombre,
+  ) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/order/$orderId/entrada-adicional'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'nombre': nombre}),
+        )
+        .timeout(const Duration(seconds: 15));
+
+    if (response.statusCode != 200) {
+      throw Exception('Error al agregar entrada adicional: ${response.body}');
+    }
+  }
 }

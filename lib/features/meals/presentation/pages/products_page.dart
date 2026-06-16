@@ -326,12 +326,12 @@ class _ProductsPageState extends State<ProductsPage> {
           ),
 
           // ✅ NUEVO: Botón para agregar entradas en mesa ocupada
-          // if (!widget.isParaLlevar && _activeOrderId != null)
-          //   IconButton(
-          //     icon: const Icon(Icons.restaurant_menu),
-          //     tooltip: 'Agregar entradas',
-          //     onPressed: _openEntradasForOccupiedTable,
-          //   ),
+          if (!widget.isParaLlevar && _activeOrderId != null)
+            IconButton(
+              icon: const Icon(Icons.restaurant_menu),
+              tooltip: 'Entrada adicional',
+              onPressed: () => _showEntradaAdicionalModal(context),
+            ),
 
           // Botón Para llevar
           if (!widget.isParaLlevar && _activeOrderId != null)
@@ -865,6 +865,293 @@ class _ProductsPageState extends State<ProductsPage> {
     return Container(
       color: AppColors.primaryLight.withValues(alpha: 0.15),
       child: const Center(child: Text('🍽️', style: TextStyle(fontSize: 32))),
+    );
+  }
+
+  Future<void> _showEntradaAdicionalModal(BuildContext context) async {
+    if (_activeOrderId == null) return;
+
+    // Cargar entradas del menú del día
+    List<dynamic> entradas = [];
+    try {
+      entradas = await ApiService.getTodayEntradas();
+    } catch (_) {}
+
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        // Estado local del modal
+        Map<String, int> contadores = {};
+        bool enviando = false;
+
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return Container(
+              margin: const EdgeInsets.only(top: 80),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Column(
+                children: [
+                  // Handle
+                  Container(
+                    margin: const EdgeInsets.only(top: 12),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+                    child: Row(
+                      children: [
+                        const Text('🍲', style: TextStyle(fontSize: 22)),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                            'Entrada adicional',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.of(ctx).pop(),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Text(
+                      'Se cobrarán aparte en caja',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
+                  ),
+                  const Divider(height: 20),
+
+                  // Lista de entradas
+                  Expanded(
+                    child: entradas.isEmpty
+                        ? Center(
+                            child: Text(
+                              'No hay entradas en el menú del día',
+                              style: TextStyle(color: Colors.grey.shade500),
+                            ),
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            itemCount: entradas.length,
+                            itemBuilder: (_, i) {
+                              final name =
+                                  entradas[i]['name']?.toString() ??
+                                  entradas[i].toString();
+                              final cantidad = contadores[name] ?? 0;
+
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 10,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: cantidad > 0
+                                      ? const Color(0xFFE1F5EE)
+                                      : Colors.grey.shade50,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: cantidad > 0
+                                        ? const Color(0xFF1D9E75)
+                                        : Colors.grey.shade200,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        name,
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600,
+                                          color: cantidad > 0
+                                              ? const Color(0xFF0F6E56)
+                                              : Colors.black87,
+                                        ),
+                                      ),
+                                    ),
+                                    // Botón -
+                                    GestureDetector(
+                                      onTap: cantidad > 0
+                                          ? () => setModalState(
+                                              () => contadores[name] =
+                                                  cantidad - 1,
+                                            )
+                                          : null,
+                                      child: Container(
+                                        width: 32,
+                                        height: 32,
+                                        decoration: BoxDecoration(
+                                          color: cantidad > 0
+                                              ? const Color(0xFF1D9E75)
+                                              : Colors.grey.shade300,
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        child: const Icon(
+                                          Icons.remove,
+                                          size: 18,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    SizedBox(
+                                      width: 24,
+                                      child: Text(
+                                        '$cantidad',
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    // Botón +
+                                    GestureDetector(
+                                      onTap: () => setModalState(
+                                        () => contadores[name] = cantidad + 1,
+                                      ),
+                                      child: Container(
+                                        width: 32,
+                                        height: 32,
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF1D9E75),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        child: const Icon(
+                                          Icons.add,
+                                          size: 18,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+
+                  // Botón confirmar
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: enviando
+                            ? null
+                            : () async {
+                                final seleccionadas = contadores.entries
+                                    .where((e) => e.value > 0)
+                                    .toList();
+
+                                if (seleccionadas.isEmpty) {
+                                  Navigator.of(ctx).pop();
+                                  return;
+                                }
+
+                                setModalState(() => enviando = true);
+
+                                try {
+                                  // Enviar cada entrada adicional (una llamada por unidad)
+                                  for (final entry in seleccionadas) {
+                                    for (int i = 0; i < entry.value; i++) {
+                                      await ApiService.agregarEntradaAdicional(
+                                        _activeOrderId!,
+                                        entry.key,
+                                      );
+                                    }
+                                  }
+
+                                  if (ctx.mounted) Navigator.of(ctx).pop();
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          '✓ ${seleccionadas.length == 1 ? "Entrada adicional enviada" : "Entradas adicionales enviadas"}',
+                                        ),
+                                        backgroundColor: const Color(
+                                          0xFF1D9E75,
+                                        ),
+                                        behavior: SnackBarBehavior.floating,
+                                        margin: const EdgeInsets.all(12),
+                                        duration: const Duration(seconds: 2),
+                                      ),
+                                    );
+                                  }
+                                } catch (e) {
+                                  setModalState(() => enviando = false);
+                                  if (ctx.mounted) {
+                                    ScaffoldMessenger.of(ctx).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Error: $e'),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1D9E75),
+                          disabledBackgroundColor: Colors.grey.shade300,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: enviando
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text(
+                                'Confirmar entrada adicional',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 

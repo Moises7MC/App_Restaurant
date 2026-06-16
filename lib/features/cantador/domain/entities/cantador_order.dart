@@ -48,7 +48,8 @@ class CantadorOrder extends Equatable {
   final String? waiterName;
   final int customerCount;
   final String? entradas;
-  final List<String> entradasServidas; // ✅ nuevo
+  final List<String> entradasServidas;
+  final List<String> entradasAdicionales;
   final bool isParaLlevar;
   final bool wasSung;
   final DateTime createdAt;
@@ -63,7 +64,8 @@ class CantadorOrder extends Equatable {
     this.waiterName,
     required this.customerCount,
     this.entradas,
-    this.entradasServidas = const [], // ✅ nuevo
+    this.entradasServidas = const [],
+    this.entradasAdicionales = const [],
     required this.isParaLlevar,
     required this.wasSung,
     required this.createdAt,
@@ -102,6 +104,24 @@ class CantadorOrder extends Equatable {
       }
     }
 
+    List<String> entradasAdicionales = [];
+    final rawAdicionales = json['entradasAdicionales'];
+    if (rawAdicionales != null) {
+      if (rawAdicionales is List) {
+        entradasAdicionales = rawAdicionales.map((e) => e.toString()).toList();
+      } else if (rawAdicionales is String && rawAdicionales.isNotEmpty) {
+        try {
+          entradasAdicionales = rawAdicionales
+              .replaceAll('[', '')
+              .replaceAll(']', '')
+              .split(',')
+              .map((e) => e.trim().replaceAll('"', ''))
+              .where((e) => e.isNotEmpty)
+              .toList();
+        } catch (_) {}
+      }
+    }
+
     return CantadorOrder(
       id: json['id'] as int,
       tableNumber: json['tableNumber'] as int,
@@ -110,7 +130,8 @@ class CantadorOrder extends Equatable {
       waiterName: json['waiterName'] as String?,
       customerCount: (json['customerCount'] as int?) ?? 1,
       entradas: json['entradas'] as String?,
-      entradasServidas: entradasServidas, // ✅ nuevo
+      entradasServidas: entradasServidas,
+      entradasAdicionales: entradasAdicionales,
       isParaLlevar: (json['isParaLlevar'] as bool?) ?? false,
       wasSung: (json['wasSung'] as bool?) ?? false,
       createdAt: DateTime.parse(json['createdAt'] as String),
@@ -130,5 +151,6 @@ class CantadorOrder extends Equatable {
     items,
     updatedAt,
     entradasServidas,
+    entradasAdicionales,
   ];
 }
