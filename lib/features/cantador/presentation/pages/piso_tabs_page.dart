@@ -760,6 +760,10 @@ class _PisoTabsPageState extends State<PisoTabsPage> {
                       )
                     : initialOrder;
 
+                debugPrint('=== ORDEN ${order.id} ===');
+                debugPrint('entradasServidas: ${order.entradasServidas}');
+                debugPrint('entradasAdicionales: ${order.entradasAdicionales}');
+
                 final entradasList = _parsearEntradasIndividuales(
                   order.entradas ?? '',
                   order.entradasServidas,

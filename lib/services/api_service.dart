@@ -337,13 +337,20 @@ class ApiService {
     int orderId,
     String nombre,
   ) async {
+    final url = '$baseUrl/order/$orderId/entrada-adicional';
+    print('URL: $url');
+    print('BODY: ${jsonEncode({'nombre': nombre})}');
+
     final response = await http
         .post(
-          Uri.parse('$baseUrl/order/$orderId/entrada-adicional'),
+          Uri.parse(url),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({'nombre': nombre}),
         )
         .timeout(const Duration(seconds: 15));
+
+    print('STATUS: ${response.statusCode}');
+    print('RESPONSE: ${response.body}');
 
     if (response.statusCode != 200) {
       throw Exception('Error al agregar entrada adicional: ${response.body}');
