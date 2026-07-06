@@ -21,8 +21,8 @@ class ApiConfig {
   // Cambiar esta IP por la de la laptop del restaurante.
   // Para verla, abrir CMD y escribir: ipconfig
   // Buscar "Dirección IPv4" del adaptador WiFi (ej: 192.168.1.9)
-  static const String localNetworkIp = '192.168.1.2'; //casa
-  // static const String localNetworkIp = '192.168.0.128';
+  // static const String localNetworkIp = '192.168.1.2'; //casa
+  static const String localNetworkIp = '192.168.0.128';
   //Como en casa
 
   // static const String localNetworkIp = '192.168.18.82'; //--cuarto chiclayo

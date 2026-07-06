@@ -279,7 +279,8 @@ class _ProductsPageState extends State<ProductsPage> {
         title: Text(
           widget.isParaLlevar
               ? 'Para llevar — Mesa ${widget.tableNumber}'
-              : '${widget.mealType} - Mesa ${widget.tableNumber}',
+              // : '${widget.mealType} - Mesa ${widget.tableNumber}',
+              : 'M - ${widget.tableNumber}',
         ),
         elevation: 0,
         leading: IconButton(

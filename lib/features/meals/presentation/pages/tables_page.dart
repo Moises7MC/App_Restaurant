@@ -404,6 +404,7 @@ class _TablesPageState extends State<TablesPage> {
       tableNumber,
     );
     final isOccupied = isOccupiedLocal || isOccupiedBackend;
+    final waiterName = (table['waiterName'] as String? ?? '').trim();
 
     return GestureDetector(
       onTap: () => _onTableTap(context, table),
@@ -477,6 +478,20 @@ class _TablesPageState extends State<TablesPage> {
                 ),
               ],
             ),
+            if (isOccupied && waiterName.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                waiterName,
+                style: TextStyle(
+                  fontSize: 9,
+                  color: AppColors.primary.withValues(alpha: 0.8),
+                  fontWeight: FontWeight.w500,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+              ),
+            ],
           ],
         ),
       ),
