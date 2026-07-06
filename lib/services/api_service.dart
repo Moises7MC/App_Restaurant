@@ -117,6 +117,43 @@ class ApiService {
     }
   }
 
+  /// Sub-pedidos "SEPARADOS" pendientes de hoy para una mesa (cada uno es una cuenta independiente).
+  static Future<List<dynamic>> getPendingSeparadoOrders(int tableNumber) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/order/table/$tableNumber'),
+      );
+      if (response.statusCode == 200) {
+        List<dynamic> orders = jsonDecode(response.body);
+        DateTime today = DateTime.now();
+        return orders.where((o) {
+          DateTime createdAt = DateTime.parse(o['createdAt']).toLocal();
+          return createdAt.day == today.day &&
+              createdAt.month == today.month &&
+              createdAt.year == today.year &&
+              (o['status'] == 'Enviado a cocina' || o['status'] == 'Pendiente') &&
+              (o['isSeparado'] ?? false) == true;
+        }).toList();
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// Busca una orden puntual de una mesa por su id (usado para continuar un subpedido SEPARADO).
+  static Future<dynamic> getOrderById(int tableNumber, int orderId) async {
+    try {
+      final orders = await getOrdersByTable(tableNumber);
+      return orders.firstWhere(
+        (o) => o['id'] == orderId,
+        orElse: () => null,
+      );
+    } catch (e) {
+      return null;
+    }
+  }
+
   /// Agrega items a una orden existente — incluye el nombre del mozo y las nuevas entradas
   static Future<dynamic> addItemToExistingOrder(
     int orderId,

@@ -17,12 +17,16 @@ class ProductsPage extends StatefulWidget {
   final String mealType;
   final int tableNumber;
   final bool isParaLlevar;
+  final bool isSeparado;
+  final int? separadoOrderId;
 
   const ProductsPage({
     super.key,
     required this.mealType,
     required this.tableNumber,
     this.isParaLlevar = false,
+    this.isSeparado = false,
+    this.separadoOrderId,
   });
 
   @override
@@ -34,6 +38,7 @@ class _ProductsPageState extends State<ProductsPage> {
   final Map<int, int> _backendItemIds = {};
   String? _entradasFromBackend;
   int? _activeOrderId;
+  String? _separadoSuffix;
 
   List<Map<String, dynamic>> _categories = [];
   bool _loadingProducts = true;
@@ -49,16 +54,23 @@ class _ProductsPageState extends State<ProductsPage> {
 
   static String get _hubUrl => ApiConfig.hubUrl;
 
+  // ✅ Los subpedidos SEPARADOS necesitan su propia clave de carrito para no
+  //    mezclarse entre sí ni con el pedido ACOMPAÑANTES de la misma mesa.
+  int _resolveCartKey() {
+    if (widget.isParaLlevar) return -(widget.tableNumber);
+    if (widget.isSeparado) {
+      return widget.separadoOrderId != null
+          ? -(2000000 + widget.separadoOrderId!)
+          : -(3000000 + widget.tableNumber);
+    }
+    return widget.tableNumber;
+  }
+
   @override
   void initState() {
     super.initState();
     context.read<CartBloc>().add(
-      SelectTable(
-        mealType: widget.mealType,
-        tableNumber: widget.isParaLlevar
-            ? -(widget.tableNumber) // ← key negativa para para llevar
-            : widget.tableNumber,
-      ),
+      SelectTable(mealType: widget.mealType, tableNumber: _resolveCartKey()),
     );
     _loadProducts();
     _loadExistingOrder();
@@ -167,47 +179,66 @@ class _ProductsPageState extends State<ProductsPage> {
 
   Future<void> _loadExistingOrder() async {
     try {
+      // ✅ SEPARADOS: si es un subpedido nuevo (sin id todavía) no hay nada que
+      //    precargar — el carrito arranca vacío. Si se eligió continuar uno
+      //    existente, cargamos ESA orden puntual (no "la última de la mesa").
+      if (widget.isSeparado) {
+        if (widget.separadoOrderId == null) return;
+        final order = await ApiService.getOrderById(
+          widget.tableNumber,
+          widget.separadoOrderId!,
+        );
+        if (order != null) _populateFromOrder(order);
+        return;
+      }
+
       final lastOrder = await ApiService.getLastPendingOrder(
         widget.tableNumber,
         isParaLlevar: widget.isParaLlevar,
       );
-      if (lastOrder != null && mounted) {
-        final items = lastOrder['items'] as List<dynamic>;
-        setState(() => _activeOrderId = lastOrder['id'] as int);
-
-        final cartBloc = context.read<CartBloc>();
-        cartBloc.add(const LimpiarCarrito());
-
-        // 🛑 NUEVO: Rescatamos las entradas que ya estaban en la orden 🛑
-        // Asegúrate de que la llave 'entradas' coincida con cómo lo devuelve tu API
-        final String? entradasViejas = lastOrder['entradas']?.toString();
-        _entradasFromBackend = entradasViejas;
-        if (entradasViejas != null && entradasViejas.isNotEmpty) {
-          // Las guardamos en el BLoC (sin append, porque estamos inicializando)
-          cartBloc.add(SetEntradas(entradasViejas));
-        }
-
-        for (var item in items) {
-          final productId = item['productId'] as int;
-          final quantity = item['quantity'] as int;
-          final itemId = item['id'] as int;
-          _itemsFromBackend[productId] = quantity;
-          _backendItemIds[productId] = itemId;
-          final product = Product(
-            id: productId,
-            name: item['product']?['name'] ?? 'Producto',
-            price: (item['unitPrice'] as num).toDouble(),
-            description: '',
-            imageUrl: '',
-            category: widget.mealType,
-          );
-          for (int i = 0; i < quantity; i++) {
-            cartBloc.add(AddToCart(product));
-          }
-        }
-      }
+      if (lastOrder != null) _populateFromOrder(lastOrder);
     } catch (e) {
       debugPrint('Error cargando orden existente: $e');
+    }
+  }
+
+  void _populateFromOrder(Map<String, dynamic> order) {
+    if (!mounted) return;
+    final items = order['items'] as List<dynamic>;
+    setState(() {
+      _activeOrderId = order['id'] as int;
+      _separadoSuffix = order['tableSuffix'] as String?;
+    });
+
+    final cartBloc = context.read<CartBloc>();
+    cartBloc.add(const LimpiarCarrito());
+
+    // 🛑 NUEVO: Rescatamos las entradas que ya estaban en la orden 🛑
+    // Asegúrate de que la llave 'entradas' coincida con cómo lo devuelve tu API
+    final String? entradasViejas = order['entradas']?.toString();
+    _entradasFromBackend = entradasViejas;
+    if (entradasViejas != null && entradasViejas.isNotEmpty) {
+      // Las guardamos en el BLoC (sin append, porque estamos inicializando)
+      cartBloc.add(SetEntradas(entradasViejas));
+    }
+
+    for (var item in items) {
+      final productId = item['productId'] as int;
+      final quantity = item['quantity'] as int;
+      final itemId = item['id'] as int;
+      _itemsFromBackend[productId] = quantity;
+      _backendItemIds[productId] = itemId;
+      final product = Product(
+        id: productId,
+        name: item['product']?['name'] ?? 'Producto',
+        price: (item['unitPrice'] as num).toDouble(),
+        description: '',
+        imageUrl: '',
+        category: widget.mealType,
+      );
+      for (int i = 0; i < quantity; i++) {
+        cartBloc.add(AddToCart(product));
+      }
     }
   }
 
@@ -279,6 +310,10 @@ class _ProductsPageState extends State<ProductsPage> {
         title: Text(
           widget.isParaLlevar
               ? 'Para llevar — Mesa ${widget.tableNumber}'
+              : widget.isSeparado
+              ? (_separadoSuffix != null
+                    ? 'M - ${widget.tableNumber}$_separadoSuffix (Separado)'
+                    : 'M - ${widget.tableNumber} · Nuevo subpedido')
               // : '${widget.mealType} - Mesa ${widget.tableNumber}',
               : 'M - ${widget.tableNumber}',
         ),
@@ -326,27 +361,56 @@ class _ProductsPageState extends State<ProductsPage> {
             ),
           ),
 
-          // ✅ NUEVO: Botón para agregar entradas en mesa ocupada
-          if (!widget.isParaLlevar && _activeOrderId != null)
-            IconButton(
-              icon: const Icon(Icons.restaurant_menu),
-              tooltip: 'Entrada adicional',
-              onPressed: () => _showEntradaAdicionalModal(context),
-            ),
-
-          // Botón Para llevar
-          if (!widget.isParaLlevar && _activeOrderId != null)
-            IconButton(
-              icon: const Icon(Icons.shopping_bag_outlined),
-              tooltip: 'Para llevar',
-              onPressed: _openParaLlevar,
-            ),
-          const SizedBox(width: 4),
-
-          // Botón ver para llevar
-          IconButton(
-            icon: const Icon(Icons.shopping_basket_sharp),
-            onPressed: _showParaLlevarModal,
+          // ✅ Menú desplegable con: entrada adicional, para llevar y ver para llevar
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              switch (value) {
+                case 'entrada_adicional':
+                  _showEntradaAdicionalModal(context);
+                  break;
+                case 'para_llevar':
+                  _openParaLlevar();
+                  break;
+                case 'ver_para_llevar':
+                  _showParaLlevarModal();
+                  break;
+              }
+            },
+            itemBuilder: (context) => [
+              if (!widget.isParaLlevar && _activeOrderId != null)
+                const PopupMenuItem(
+                  value: 'entrada_adicional',
+                  child: Row(
+                    children: [
+                      Icon(Icons.restaurant_menu),
+                      SizedBox(width: 12),
+                      Text('Entrada adicional'),
+                    ],
+                  ),
+                ),
+              if (!widget.isParaLlevar && _activeOrderId != null)
+                const PopupMenuItem(
+                  value: 'para_llevar',
+                  child: Row(
+                    children: [
+                      Icon(Icons.shopping_bag_outlined),
+                      SizedBox(width: 12),
+                      Text('Para llevar'),
+                    ],
+                  ),
+                ),
+              const PopupMenuItem(
+                value: 'ver_para_llevar',
+                child: Row(
+                  children: [
+                    Icon(Icons.shopping_basket_sharp),
+                    SizedBox(width: 12),
+                    Text('Ver para llevar'),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -377,6 +441,7 @@ class _ProductsPageState extends State<ProductsPage> {
                                     isParaLlevar: widget.isParaLlevar,
                                     entradasFromBackend:
                                         _entradasFromBackend, // 👈 3. A
+                                    isSeparado: widget.isSeparado,
                                   ),
                                 ),
                               ),

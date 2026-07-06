@@ -19,6 +19,7 @@ class CartPage extends StatefulWidget {
   final Map<int, int> backendItemIds;
   final bool isParaLlevar;
   final String? entradasFromBackend;
+  final bool isSeparado;
 
   const CartPage({
     super.key,
@@ -29,6 +30,7 @@ class CartPage extends StatefulWidget {
     this.backendItemIds = const {},
     this.isParaLlevar = false,
     this.entradasFromBackend,
+    this.isSeparado = false,
   });
 
   @override
@@ -71,6 +73,8 @@ class _CartPageState extends State<CartPage> {
         title: Text(
           widget.isParaLlevar
               ? 'Para llevar — Mesa ${widget.tableNumber}'
+              : widget.isSeparado
+              ? 'Mi pedido (Separado) - Mesa ${widget.tableNumber}'
               : 'Mi pedido - Mesa ${widget.tableNumber}',
         ),
         elevation: 0,
@@ -246,12 +250,17 @@ class _CartPageState extends State<CartPage> {
                     try {
                       final waiterName = await _getWaiterName();
 
-                      final lastOrder = await ApiService.getLastPendingOrder(
-                        widget.tableNumber,
-                        isParaLlevar: widget.isParaLlevar,
-                      );
+                      // ✅ SEPARADOS: el subpedido a continuar (si lo hay) ya viene
+                      //    resuelto en activeOrderId — nunca se busca "la última
+                      //    orden de la mesa", porque eso mezclaría subpedidos.
+                      final int? targetOrderId = widget.isSeparado
+                          ? widget.activeOrderId
+                          : (await ApiService.getLastPendingOrder(
+                              widget.tableNumber,
+                              isParaLlevar: widget.isParaLlevar,
+                            ))?['id'];
 
-                      if (lastOrder != null) {
+                      if (targetOrderId != null) {
                         final itemsToSend = state.items
                             .where((item) {
                               final bQty =
@@ -283,7 +292,7 @@ class _CartPageState extends State<CartPage> {
 
                         // Enviar los items y las entradas actualizadas
                         await ApiService.addItemToExistingOrder(
-                          lastOrder['id'],
+                          targetOrderId,
                           itemsToSend,
                           entradas: state.entradas,
                         );
@@ -293,6 +302,7 @@ class _CartPageState extends State<CartPage> {
                           'mealType': widget.mealType,
                           'waiterName': waiterName,
                           'isParaLlevar': widget.isParaLlevar,
+                          'isSeparado': widget.isSeparado,
                           'entradas':
                               (state.entradas != null &&
                                   state.entradas!.trim().isNotEmpty)
@@ -367,7 +377,7 @@ class _CartPageState extends State<CartPage> {
             ),
           ),
 
-          if (!widget.isParaLlevar) ...[
+          if (!widget.isParaLlevar && !widget.isSeparado) ...[
             const SizedBox(height: 12),
 
             // ── Liberar mesa ──

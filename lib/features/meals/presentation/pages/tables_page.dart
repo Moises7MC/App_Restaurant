@@ -7,6 +7,7 @@ import '../../../../services/api_service.dart';
 import '../bloc/cart_bloc.dart';
 import '../bloc/cart_state.dart';
 import '../pages/entrada_selection_page.dart';
+import '../pages/products_page.dart';
 import 'package:signalr_netcore/signalr_client.dart';
 import '../bloc/cart_event.dart';
 
@@ -117,10 +118,226 @@ class _TablesPageState extends State<TablesPage> {
     final isOccupied = isOccupiedLocal || isOccupiedBackend;
 
     if (isOccupied) {
-      context.goToProducts(widget.mealType, tableNumber);
+      _showOccupiedTableOptionsModal(context, tableNumber);
     } else {
       _showCustomerCountModal(context, tableNumber);
     }
+  }
+
+  // ✅ Mesa ocupada → elegir entre Acompañantes (flujo normal) o Separados (en mantenimiento)
+  void _showOccupiedTableOptionsModal(BuildContext context, int tableNumber) {
+    showDialog(
+      context: context,
+      builder: (dlg) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Column(
+          children: [
+            const Text('🪑', style: TextStyle(fontSize: 36)),
+            const SizedBox(height: 6),
+            Text(
+              'Mesa $tableNumber',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '¿Cómo deseas continuar?',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade600,
+                fontWeight: FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () {
+                  Navigator.of(dlg).pop();
+                  context.goToProducts(widget.mealType, tableNumber);
+                },
+                child: const Text(
+                  'ACOMPAÑANTES',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  side: const BorderSide(color: AppColors.textPrimary),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () {
+                  Navigator.of(dlg).pop();
+                  _openSeparados(context, tableNumber);
+                },
+                child: const Text(
+                  'SEPARADOS',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ✅ Mesa ocupada + SEPARADOS: consulta sub-pedidos pendientes de esta mesa.
+  //    Si ya hay alguno, deja elegir a cuál agregar o crear uno nuevo.
+  //    Si no hay ninguno, crea directo el primer sub-pedido (11A).
+  Future<void> _openSeparados(BuildContext context, int tableNumber) async {
+    final pending = await ApiService.getPendingSeparadoOrders(tableNumber);
+    if (!context.mounted) return;
+
+    if (pending.isEmpty) {
+      _goToProductsSeparado(context, tableNumber, null);
+      return;
+    }
+
+    _showSeparadosSelectionModal(context, tableNumber, pending);
+  }
+
+  void _goToProductsSeparado(
+    BuildContext context,
+    int tableNumber,
+    int? separadoOrderId,
+  ) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => BlocProvider.value(
+          value: context.read<CartBloc>(),
+          child: ProductsPage(
+            mealType: widget.mealType,
+            tableNumber: tableNumber,
+            isSeparado: true,
+            separadoOrderId: separadoOrderId,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showSeparadosSelectionModal(
+    BuildContext context,
+    int tableNumber,
+    List<dynamic> pending,
+  ) {
+    showDialog(
+      context: context,
+      builder: (dlg) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Column(
+          children: [
+            const Text('🧾', style: TextStyle(fontSize: 36)),
+            const SizedBox(height: 6),
+            Text(
+              'Mesa $tableNumber — Separados',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '¿En qué subpedido deseas agregar?',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade600,
+                fontWeight: FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ...pending.map((order) {
+              final suffix = (order['tableSuffix'] as String? ?? '').trim();
+              final total = (order['total'] as num?)?.toDouble() ?? 0.0;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      side: const BorderSide(color: AppColors.primary),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.of(dlg).pop();
+                      _goToProductsSeparado(
+                        context,
+                        tableNumber,
+                        order['id'] as int,
+                      );
+                    },
+                    child: Text(
+                      'Mesa $tableNumber$suffix · S/. ${total.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () {
+                  Navigator.of(dlg).pop();
+                  _goToProductsSeparado(context, tableNumber, null);
+                },
+                child: const Text(
+                  '+ Crear nuevo subpedido',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dlg).pop(),
+            child: const Text('Cancelar'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showCustomerCountModal(BuildContext context, int tableNumber) {
@@ -482,10 +699,10 @@ class _TablesPageState extends State<TablesPage> {
               const SizedBox(height: 2),
               Text(
                 waiterName,
-                style: TextStyle(
-                  fontSize: 9,
-                  color: AppColors.primary.withValues(alpha: 0.8),
-                  fontWeight: FontWeight.w500,
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.bold,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
